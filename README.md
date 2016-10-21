@@ -1,2 +1,4 @@
 # VFF
-Variational Fourier Features
+Variational Fourier Features for Gaussian processes
+
+Code accompanies this arxiv paper: TODO
