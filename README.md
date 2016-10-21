@@ -1,0 +1,2 @@
+# VFF
+Variational Fourier Features
