@@ -4,6 +4,12 @@ import tensorflow as tf
 
 
 class SSGP(GPflow.model.GPModel):
+    """
+    The Sparse Spectrum GP, judiciously copied from Miguel Lazaro Gredilla's
+    MATLAB code, available at http://www.tsc.uc3m.es/~miguel/downloads.php. His
+    code remains as comments in this file.
+    """
+
     def __init__(self, X, Y, kern, num_basis=10):
         lik = GPflow.likelihoods.Gaussian()
         mf = GPflow.mean_functions.Zero()
@@ -54,8 +60,8 @@ class SSGP(GPflow.model.GPModel):
 
         # % output NLML
         # out1=0.5/sn2*(sum(y_tr.^2)-sf2/m*sum(Rtiphity.^2))+ ...
-        out = 0.5/self.likelihood.variance*(tf.reduce_sum(tf.square(self.Y))
-                                            - self.kern.variance/m_float*tf.reduce_sum(tf.square(Rtiphity)))
+        out = 0.5/self.likelihood.variance*(tf.reduce_sum(tf.square(self.Y)) -
+                                            self.kern.variance/m_float*tf.reduce_sum(tf.square(Rtiphity)))
         # +sum(log(diag(R)))+(n/2-m)*log(sn2)+n/2*log(2*pi);
         n = tf.cast(tf.shape(self.X)[0], tf.float64)
         out += tf.reduce_sum(tf.log(tf.diag_part(R)))\
