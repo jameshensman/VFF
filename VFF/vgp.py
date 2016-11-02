@@ -245,10 +245,6 @@ class VGP_kron(GPflow.model.GPModel):
         elif use_extra_ranks:
             self.q_sqrt_W = GPflow.param.Param(np.zeros((np.prod(self.Ms), use_extra_ranks)))
 
-        # pre-compute the Kuf matrices
-        self._Kuf = [tf.constant(make_Kuf_np(X[:, i:i+1], ai, bi, self.ms), float_type)
-                     for i, (ai, bi) in enumerate(zip(self.a, self.b))]
-
     def __getstate__(self):
         d = GPflow.model.Model.__getstate__(self)
         d.pop('_Kuf')
@@ -297,7 +293,9 @@ class VGP_kron(GPflow.model.GPModel):
         return mu, var
 
     def _build_predict_train(self):
-        Kuf = self._Kuf
+        Kuf = [tf.constant(make_Kuf_np(X[:, i:i+1], ai, bi, self.ms), float_type)
+               for i, (ai, bi) in enumerate(zip(self.a, self.b))]
+
         Kuu = [make_Kuu(kern, a, b, self.ms) for kern, a, b, in zip(self.kerns, self.a, self.b)]
         KiKuf = [Kuu_d.solve(Kuf_d) for Kuu_d, Kuf_d in zip(Kuu, Kuf)]
         KfuKi = [tf.transpose(mat) for mat in KiKuf]
