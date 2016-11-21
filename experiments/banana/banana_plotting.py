@@ -3,6 +3,7 @@ from matplotlib import pyplot as plt
 from scipy.cluster.vq import kmeans
 import VFF
 import GPflow
+np.random.seed(0)
 
 X = np.loadtxt('banana_X_train', delimiter=',')
 Y = np.loadtxt('banana_Y_train')[:, None]
@@ -48,7 +49,11 @@ m = GPflow.vgp.VGP(X, Y, kern=k(1, active_dims=[0]) * k(1, active_dims=[1]), lik
 models.append(m)
 
 ###############
-[m.optimize() for m in models]
+for m in models:
+    try:
+        m.optimize()
+    except:
+        print('model optimization failed')
 
 ###############
 labels = ['VFF 2', 'VFF 4', 'VFF 8', 'VFF 16', 'IIP 4', 'IIP 8', 'IIP 16', 'IIP 32', 'Full']
@@ -62,4 +67,4 @@ for ax, lab, m in zip(axes, labels, models):
 
 
 # m2t.save('banana_compare.tikz')
-# plt.savefig('banana_compare.png')
+plt.savefig('banana_compare.png')
