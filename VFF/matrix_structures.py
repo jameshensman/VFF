@@ -9,8 +9,14 @@ import numpy as np
 class BlockDiagMat_many:
     def __init__(self, mats):
         self.mats = mats
-        self.shape = (sum([m.shape[0] for m in mats]), sum([m.shape[1] for m in mats]))
-        self.sqrt_dims = sum([m.sqrt_dims for m in mats])
+
+    @property
+    def shape(self):
+        return (sum([m.shape[0] for m in mats]), sum([m.shape[1] for m in mats]))
+
+    @property
+    def sqrt_dims(self):
+        return sum([m.sqrt_dims for m in mats])
 
     def _get_rhs_slices(self, X):
         ret = []
@@ -82,9 +88,16 @@ class BlockDiagMat_many:
 class BlockDiagMat:
     def __init__(self, A, B):
         self.A, self.B = A, B
-        self.shape = (A.shape[0] + B.shape[0], A.shape[1] + B.shape[1])
-        self.sqrt_dims = A.sqrt_dims + B.sqrt_dims
-        self.shape0, self.shape1 = self.shape
+
+    @property
+    def shape(self):
+        mats = [self.A, self.B]
+        return (sum([m.shape[0] for m in mats]), sum([m.shape[1] for m in mats]))
+
+    @property
+    def sqrt_dims(self):
+        mats = [self.A, self.B]
+        return sum([m.sqrt_dims for m in mats])
 
     def _get_rhs_slices(self, X):
         # X1 = X[:self.A.shape[1], :]
@@ -156,8 +169,14 @@ class LowRankMat:
         """
         self.d = d
         self.W = W
-        self.shape = (tf.size(self.d), tf.size(self.d))
-        self.sqrt_dims = tf.size(self.d) + tf.shape(W)[1]
+
+    @property
+    def shape(self):
+        return (tf.size(self.d), tf.size(self.d))
+
+    @property
+    def sqrt_dims(self):
+        return tf.size(self.d) + tf.shape(W)[1]
 
     def get(self):
         return tf.diag(self.d) + tf.matmul(self.W, tf.transpose(self.W))
@@ -246,8 +265,14 @@ class Rank1Mat:
         """
         self.d = d
         self.v = v
-        self.shape = (tf.size(self.d), tf.size(self.d))
-        self.sqrt_dims = tf.size(d) + 1
+
+    @property
+    def shape(self):
+        return (tf.size(self.d), tf.size(self.d))
+
+    @property
+    def sqrt_dims(self):
+        return tf.size(self.d) + 1
 
     def get(self):
         V = tf.expand_dims(self.v, 1)
@@ -317,8 +342,14 @@ class Rank1Mat:
 class DiagMat:
     def __init__(self, d):
         self.d = d
-        self.shape = (tf.size(self.d), tf.size(self.d))
-        self.sqrt_dims = tf.size(d)
+
+    @property
+    def shape(self):
+        return (tf.size(self.d), tf.size(self.d))
+
+    @property
+    def sqrt_dims(self):
+        return tf.size(self.d)
 
     def get(self):
         return tf.diag(self.d)
