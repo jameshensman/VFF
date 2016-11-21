@@ -102,7 +102,7 @@ def kron_vec_sqrt_transpose(K, vec):
 
 
 class GPMC_kron(GPflow.model.GPModel):
-    def __init__(self, X, Y, ms, a, b, kerns, likelihood):
+    def __init__(self, X, Y, ms, a, b, kerns, likelihood, mean_function=None):
         """
         X is a np array of stimuli
         Y is a np array of responses
@@ -119,9 +119,10 @@ class GPMC_kron(GPflow.model.GPModel):
             assert isinstance(kern, (GPflow.kernels.Matern12,
                                      GPflow.kernels.Matern32,
                                      GPflow.kernels.Matern52))
-        mf = GPflow.mean_functions.Zero()
+        if mean_function is None:
+            mean_function = GPflow.mean_functions.Zero()
         GPflow.model.GPModel.__init__(self, X, Y, kern=None,
-                                      likelihood=likelihood, mean_function=mf)
+                                      likelihood=likelihood, mean_function=mean_function)
         self.num_data = X.shape[0]
         self.num_latent = 1  # multiple columns not supported in this version
         self.a = a
@@ -169,7 +170,7 @@ class GPMC_kron(GPflow.model.GPModel):
 
             var = tf.reshape(var, (-1, 1))
 
-        return mu, var
+        return mu + self.mean_function(self.X), var
 
     def build_likelihood(self):
         Kuf = [make_Kuf(k, self.X[:, i:i+1], a, b, self.ms)
@@ -180,6 +181,7 @@ class GPMC_kron(GPflow.model.GPModel):
         KiKuf = [Kuu_d.solve(Kuf_d) for Kuu_d, Kuf_d in zip(Kuu, Kuf)]
         RV = kron_vec_sqrt_transpose(Kuu, self.V)  # M x 1
         mu = kvs_dot_vec([tf.transpose(KiKuf_d) for KiKuf_d in KiKuf], RV)  # N x 1
+        mu += self.mean_function(self.X)
         var = reduce(tf.mul, [k.Kdiag(self.X[:, i:i+1]) for i, k in enumerate(self.kerns)])
         var = var - reduce(tf.mul, [tf.reduce_sum(Kuf_d * KiKuf_d, 0) for Kuf_d, KiKuf_d in zip(Kuf, KiKuf)])
         var = tf.reshape(var, (-1, 1))
