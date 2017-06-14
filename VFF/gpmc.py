@@ -107,10 +107,10 @@ def kron_vec_sqrt_transpose(K, vec):
     K is a list of objects to be kroneckered
     vec is a N x 1 tf_array
     """
-    N_by_1 = tf.pack([-1, 1])
+    N_by_1 = tf.stack([-1, 1])
 
     def f(v, k):
-        v = tf.reshape(v, tf.pack([k.sqrt_dims, -1]))
+        v = tf.reshape(v, tf.stack([k.sqrt_dims, -1]))
         v = k.matmul_sqrt_transpose(v)
         return tf.reshape(tf.transpose(v), N_by_1)  # transposing first flattens the vector in column order
     return reduce(f, K, vec)

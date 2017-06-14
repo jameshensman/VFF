@@ -289,24 +289,24 @@ class VGP_kron(GPflow.model.GPModel):
             raise NotImplementedError
         else:
             # Kff:
-            var = reduce(tf.mul, [k.Kdiag(X[:, i:i+1]) for i, k in enumerate(self.kerns)])
+            var = reduce(tf.multiply, [k.Kdiag(X[:, i:i+1]) for i, k in enumerate(self.kerns)])
 
             # Projected variance Kfu Ki [WWT] Ki Kuf
             Ls = [tf.matrix_band_part(q_sqrt_d, -1, 0) for q_sqrt_d in self.q_sqrt_kron]
             tmp = [tf.matmul(tf.transpose(L), KiKuf_d) for L, KiKuf_d in zip(Ls, KiKuf)]
-            var = var + reduce(tf.mul, [tf.reduce_sum(tf.square(tmp_d), 0) for tmp_d in tmp])
+            var = var + reduce(tf.multiply, [tf.reduce_sum(tf.square(tmp_d), 0) for tmp_d in tmp])
 
             if self.use_two_krons:
                 Ls = [tf.matrix_band_part(q_sqrt_d, -1, 0) for q_sqrt_d in self.q_sqrt_kron_2]
                 tmp = [tf.matmul(tf.transpose(L), KiKuf_d) for L, KiKuf_d in zip(Ls, KiKuf)]
-                var = var + reduce(tf.mul, [tf.reduce_sum(tf.square(tmp_d), 0) for tmp_d in tmp])
+                var = var + reduce(tf.multiply, [tf.reduce_sum(tf.square(tmp_d), 0) for tmp_d in tmp])
             elif self.use_extra_ranks:
                 for i in range(self.use_extra_ranks):
                     tmp = kvs_dot_vec(KfuKi, self.q_sqrt_W[:, i:i+1])
                     var = var + tf.reduce_sum(tf.square(tmp), 1)
 
             # Qff
-            var = var - reduce(tf.mul, [tf.reduce_sum(Kuf_d * KiKuf_d, 0) for Kuf_d, KiKuf_d in zip(Kuf, KiKuf)])
+            var = var - reduce(tf.multiply, [tf.reduce_sum(Kuf_d * KiKuf_d, 0) for Kuf_d, KiKuf_d in zip(Kuf, KiKuf)])
 
             var = tf.reshape(var, (-1, 1))
 
@@ -322,24 +322,24 @@ class VGP_kron(GPflow.model.GPModel):
         mu = kvs_dot_vec(KfuKi, self.q_mu)
 
         # Kff:
-        var = reduce(tf.mul, [k.Kdiag(self.X[:, i:i+1]) for i, k in enumerate(self.kerns)])
+        var = reduce(tf.multiply, [k.Kdiag(self.X[:, i:i+1]) for i, k in enumerate(self.kerns)])
 
         # Projected variance Kfu Ki [WWT] Ki Kuf
         Ls = [tf.matrix_band_part(q_sqrt_d, -1, 0) for q_sqrt_d in self.q_sqrt_kron]
         tmp = [tf.matmul(tf.transpose(L), KiKuf_d) for L, KiKuf_d in zip(Ls, KiKuf)]
-        var = var + reduce(tf.mul, [tf.reduce_sum(tf.square(tmp_d), 0) for tmp_d in tmp])
+        var = var + reduce(tf.multiply, [tf.reduce_sum(tf.square(tmp_d), 0) for tmp_d in tmp])
 
         if self.use_two_krons:
             Ls = [tf.matrix_band_part(q_sqrt_d, -1, 0) for q_sqrt_d in self.q_sqrt_kron_2]
             tmp = [tf.matmul(tf.transpose(L), KiKuf_d) for L, KiKuf_d in zip(Ls, KiKuf)]
-            var = var + reduce(tf.mul, [tf.reduce_sum(tf.square(tmp_d), 0) for tmp_d in tmp])
+            var = var + reduce(tf.multiply, [tf.reduce_sum(tf.square(tmp_d), 0) for tmp_d in tmp])
         elif self.use_extra_ranks:
             for i in range(self.use_extra_ranks):
                 tmp = kvs_dot_vec(KfuKi, self.q_sqrt_W[:, i:i+1])
                 var = var + tf.reduce_sum(tf.square(tmp), 1)
 
         # Qff
-        var = var - reduce(tf.mul, [tf.reduce_sum(Kuf_d * KiKuf_d, 0) for Kuf_d, KiKuf_d in zip(Kuf, KiKuf)])
+        var = var - reduce(tf.multiply, [tf.reduce_sum(Kuf_d * KiKuf_d, 0) for Kuf_d, KiKuf_d in zip(Kuf, KiKuf)])
 
         return mu, tf.reshape(var, [-1, 1])
 
@@ -369,7 +369,7 @@ class VGP_kron(GPflow.model.GPModel):
         # trace term tr(K^{-1} Sigma_q)
         Ss = [tf.matmul(L, tf.transpose(L)) for L in Ls]
         traces = [K.trace_KiX(S) for K, S, in zip(Kuu, Ss)]
-        KL += 0.5 * reduce(tf.mul, traces)  # kron-trace is the produce of traces
+        KL += 0.5 * reduce(tf.multiply, traces)  # kron-trace is the produce of traces
 
         # log det term Kuu
         Kuu_logdets = [K.logdet() for K in Kuu]
@@ -386,7 +386,7 @@ class VGP_kron(GPflow.model.GPModel):
             # extra trace terms
             Ss = [tf.matmul(L, tf.transpose(L)) for L in Ls_2]
             traces = [K.trace_KiX(S) for K, S, in zip(Kuu, Ss)]
-            KL += 0.5 * reduce(tf.mul, traces)  # kron-trace is the produce of traces
+            KL += 0.5 * reduce(tf.multiply, traces)  # kron-trace is the produce of traces
 
         elif self.use_extra_ranks:
             # extra logdet terms
@@ -475,14 +475,14 @@ class VGP_kron_anyvar(GPflow.model.GPModel):
             raise NotImplementedError
         else:
             # Kff:
-            var = reduce(tf.mul, [k.Kdiag(X[:, i:i+1]) for i, k in enumerate(self.kerns)])
+            var = reduce(tf.multiply, [k.Kdiag(X[:, i:i+1]) for i, k in enumerate(self.kerns)])
 
             # Projected variance Kfu Ki [WWT] Ki Kuf
-            # var = var + reduce(tf.mul, [tf.reduce_sum(tf.square(tmp1_d), 0) for tmp1_d in tmp1])
+            # var = var + reduce(tf.multiply, [tf.reduce_sum(tf.square(tmp1_d), 0) for tmp1_d in tmp1])
             var = var + tf.reduce_sum(tf.square(tmp1), 1)
 
             # Qff
-            var = var - reduce(tf.mul, [tf.reduce_sum(Kuf_d * KiKuf_d, 0) for Kuf_d, KiKuf_d in zip(Kuf, KiKuf)])
+            var = var - reduce(tf.multiply, [tf.reduce_sum(Kuf_d * KiKuf_d, 0) for Kuf_d, KiKuf_d in zip(Kuf, KiKuf)])
 
             var = tf.reshape(var, (-1, 1))
 
@@ -499,12 +499,12 @@ class VGP_kron_anyvar(GPflow.model.GPModel):
         tmp1 = kvs_dot_mat(KfuKi, L, num_cols=np.prod(self.Ms))
 
         # Kff:
-        var = reduce(tf.mul, [k.Kdiag(self.X[:, i:i+1]) for i, k in enumerate(self.kerns)])
+        var = reduce(tf.multiply, [k.Kdiag(self.X[:, i:i+1]) for i, k in enumerate(self.kerns)])
         # Projected variance Kfu Ki [WWT] Ki Kuf
-        # var = var + reduce(tf.mul, [tf.reduce_sum(tf.square(tmp1_d), 0) for tmp1_d in tmp1])
+        # var = var + reduce(tf.multiply, [tf.reduce_sum(tf.square(tmp1_d), 0) for tmp1_d in tmp1])
         var = var + tf.reduce_sum(tf.square(tmp1), 1)
         # Qff
-        var = var - reduce(tf.mul, [tf.reduce_sum(Kuf_d * KiKuf_d, 0) for Kuf_d, KiKuf_d in zip(Kuf, KiKuf)])
+        var = var - reduce(tf.multiply, [tf.reduce_sum(Kuf_d * KiKuf_d, 0) for Kuf_d, KiKuf_d in zip(Kuf, KiKuf)])
         var = tf.reshape(var, (-1, 1))
 
         return mu, var

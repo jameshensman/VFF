@@ -89,13 +89,13 @@ class GPR_1d(GPflow.model.GPModel):
             var = self.kern.k(Xnew) + \
                tf.matmul(tf.transpose(tmp), tmp) - \
                tf.matmul(tf.transpose(KiKus), Kus)
-            shape = tf.pack([1, 1, tf.shape(self.y)[1]])
+            shape = tf.stack([1, 1, tf.shape(self.y)[1]])
             var = tf.tile(tf.expand_dims(var, 2), shape)
         else:
             var = self.kern.Kdiag(Xnew)
             var += tf.reduce_sum(tf.square(tmp), 0)
             var -= tf.reduce_sum(KiKus * Kus, 0)
-            shape = tf.pack([1, tf.shape(self.Y)[1]])
+            shape = tf.stack([1, tf.shape(self.Y)[1]])
             var = tf.tile(tf.expand_dims(var, 1), shape)
         return mean, var
 
@@ -180,8 +180,8 @@ class GPR_additive(GPflow.model.GPModel):
         L = tf.cholesky(P)
         c = tf.matrix_triangular_solve(L, self.KufY) / sigma2
 
-        Kus = tf.concat(0, [make_Kuf(k, Xnew[:, i:i+1], a, b, self.ms)
-                            for i, (k, a, b) in enumerate(zip(self.kerns, self.a, self.b))])
+        Kus = tf.concat([make_Kuf(k, Xnew[:, i:i+1], a, b, self.ms)
+                         for i, (k, a, b) in enumerate(zip(self.kerns, self.a, self.b))], axis=0)
         tmp = tf.matrix_triangular_solve(L, Kus)
         mean = tf.matmul(tf.transpose(tmp), c)
         KiKus = Kuu.solve(Kus)
@@ -189,13 +189,13 @@ class GPR_additive(GPflow.model.GPModel):
             var = reduce(tf.add, [k.K(Xnew[:, i:i+1]) for i, k in enumerate(self.kerns)])
             var += tf.matmul(tf.transpose(tmp), tmp)
             var -= tf.matmul(tf.transpose(KiKus), Kus)
-            shape = tf.pack([1, 1, tf.shape(self.Y)[1]])
+            shape = tf.stack([1, 1, tf.shape(self.Y)[1]])
             var = tf.tile(tf.expand_dims(var, 2), shape)
         else:
             var = reduce(tf.add, [k.Kdiag(Xnew[:, i:i+1]) for i, k in enumerate(self.kerns)])
             var += tf.reduce_sum(tf.square(tmp), 0)
             var -= tf.reduce_sum(KiKus * Kus, 0)
-            shape = tf.pack([1, tf.shape(self.Y)[1]])
+            shape = tf.stack([1, tf.shape(self.Y)[1]])
             var = tf.tile(tf.expand_dims(var, 1), shape)
         return mean, var
 
@@ -218,9 +218,9 @@ class GPR_additive(GPflow.model.GPModel):
         Kus = []
         start = tf.constant(0, tf.int32)
         for i, b in enumerate(Kus_blocks):
-            zeros_above = tf.zeros(tf.pack([start, tf.shape(b)[1]]), float_type)
-            zeros_below = tf.zeros(tf.pack([tf.shape(L)[0] - start - tf.shape(b)[0], tf.shape(b)[1]]), float_type)
-            Kus.append(tf.concat(0, [zeros_above, b, zeros_below]))
+            zeros_above = tf.zeros(tf.stack([start, tf.shape(b)[1]]), float_type)
+            zeros_below = tf.zeros(tf.stack([tf.shape(L)[0] - start - tf.shape(b)[0], tf.shape(b)[1]]), float_type)
+            Kus.append(tf.concat([zeros_above, b, zeros_below], axis=0))
             start = start + tf.shape(b)[0]
 
         tmp = [tf.matrix_triangular_solve(L, Kus_i) for Kus_i in Kus]
@@ -230,4 +230,4 @@ class GPR_additive(GPflow.model.GPModel):
         var = [v + tf.reduce_sum(tf.square(tmp_i), 0) for v, tmp_i in zip(var, tmp)]
         var = [v - tf.reduce_sum(KiKus_i * Kus_i, 0) for v, KiKus_i, Kus_i in zip(var, KiKus, Kus)]
         var = [tf.expand_dims(v, 1) for v in var]
-        return tf.concat(1, mean), tf.concat(1, var)
+        return tf.concat(mean, axis=1), tf.concat(var, axis=1)

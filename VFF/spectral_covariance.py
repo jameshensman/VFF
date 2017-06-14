@@ -66,7 +66,7 @@ def make_Kuu(kern, a, b, ms):
         sixteen_or_32 = np.where(omegas == 0, 16., 32.)
         v1 = (3 * tf.square(omegas / lamb) - 1) / tf.sqrt(8 * kern.variance)
         v2 = tf.ones(tf.shape(v1), float_type) / tf.sqrt(kern.variance)
-        W_cos = tf.concat(1, [tf.expand_dims(v1, 1), tf.expand_dims(v2, 1)])
+        W_cos = tf.concat([tf.expand_dims(v1, 1), tf.expand_dims(v2, 1)], axis=1)
         d_cos = 3 * (b - a) / sixteen_or_32 / tf.pow(lamb, 5)\
             / kern.variance\
             * tf.pow(tf.square(lamb) + tf.square(omegas), 3)
@@ -86,7 +86,7 @@ def make_Kuf_no_edges(X, a, b, ms):
     Kuf_cos = tf.transpose(tf.cos(omegas * (X - a)))
     omegas = omegas[omegas != 0]  # don't compute zeros freq.
     Kuf_sin = tf.transpose(tf.sin(omegas * (X - a)))
-    return tf.concat(0, [Kuf_cos, Kuf_sin])
+    return tf.concat([Kuf_cos, Kuf_sin], axis=0)
 
 
 def make_Kuf(k, X, a, b, ms):
@@ -104,24 +104,24 @@ def make_Kuf(k, X, a, b, ms):
     gt_b_cos = tf.tile(tf.transpose(X) > b, [len(ms), 1])
     if isinstance(k, GPflow.kernels.Matern12):
         # Kuf_sin[:, np.logical_or(X.flatten() < a, X.flatten() > b)] = 0
-        Kuf_sin = tf.select(tf.logical_or(lt_a_sin, gt_b_sin), tf.zeros(tf.shape(Kuf_sin), float_type), Kuf_sin)
-        Kuf_cos = tf.select(lt_a_cos, tf.tile(tf.exp(-tf.abs(tf.transpose(X-a))/k.lengthscales), [len(ms), 1]), Kuf_cos)
-        Kuf_cos = tf.select(gt_b_cos, tf.tile(tf.exp(-tf.abs(tf.transpose(X-b))/k.lengthscales), [len(ms), 1]), Kuf_cos)
+        Kuf_sin = tf.where(tf.logical_or(lt_a_sin, gt_b_sin), tf.zeros(tf.shape(Kuf_sin), float_type), Kuf_sin)
+        Kuf_cos = tf.where(lt_a_cos, tf.tile(tf.exp(-tf.abs(tf.transpose(X-a))/k.lengthscales), [len(ms), 1]), Kuf_cos)
+        Kuf_cos = tf.where(gt_b_cos, tf.tile(tf.exp(-tf.abs(tf.transpose(X-b))/k.lengthscales), [len(ms), 1]), Kuf_cos)
     elif isinstance(k, GPflow.kernels.Matern32):
         arg = np.sqrt(3) * tf.abs(tf.transpose(X) - a) / k.lengthscales
         edge = tf.tile((1 + arg) * tf.exp(-arg), [len(ms), 1])
-        Kuf_cos = tf.select(lt_a_cos, edge, Kuf_cos)
+        Kuf_cos = tf.where(lt_a_cos, edge, Kuf_cos)
         arg = np.sqrt(3) * tf.abs(tf.transpose(X) - a) / k.lengthscales
         edge = tf.tile((1 + arg) * tf.exp(-arg), [len(ms), 1])
-        Kuf_cos = tf.select(gt_b_cos, edge, Kuf_cos)
+        Kuf_cos = tf.where(gt_b_cos, edge, Kuf_cos)
 
         arg = np.sqrt(3) * tf.abs(tf.transpose(X) - a) / k.lengthscales
         edge = (tf.transpose(X) - a) * tf.exp(-arg) * omegas_sin[:, None]
-        Kuf_sin = tf.select(lt_a_sin, edge, Kuf_sin)
+        Kuf_sin = tf.where(lt_a_sin, edge, Kuf_sin)
         arg = np.sqrt(3) * tf.abs(tf.transpose(X) - b) / k.lengthscales
         edge = (tf.transpose(X) - b) * tf.exp(-arg) * omegas_sin[:, None]
-        Kuf_sin = tf.select(gt_b_sin, edge, Kuf_sin)
-    return tf.concat(0, [Kuf_cos, Kuf_sin])
+        Kuf_sin = tf.where(gt_b_sin, edge, Kuf_sin)
+    return tf.concat([Kuf_cos, Kuf_sin], axis=0)
 
 
 def make_Kuf_np(X, a, b, ms):

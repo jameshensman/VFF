@@ -59,7 +59,7 @@ class SSGP(GPflow.model.GPModel):
         # phi = x_tr*w';
         phi = tf.matmul(self.X, tf.transpose(w))
         # phi = [cos(phi) sin(phi)];                                              % design matrix
-        phi = tf.concat(1, [tf.cos(phi), tf.sin(phi)])
+        phi = tf.concat([tf.cos(phi), tf.sin(phi)], axis=1)
 
         # R = chol((sf2/m)*(phi'*phi) + sn2*eye(2*m));                            % calculate some often-used constants
         A = (self.kern.variance / m_float) * tf.matmul(tf.transpose(phi), phi)\
@@ -93,7 +93,7 @@ class SSGP(GPflow.model.GPModel):
         # phi = x_tr*w';
         phi = tf.matmul(self.X, tf.transpose(w))
         # phi = [cos(phi) sin(phi)];                                              % design matrix
-        phi = tf.concat(1, [tf.cos(phi), tf.sin(phi)])
+        phi = tf.concat([tf.cos(phi), tf.sin(phi)], axis=1)
 
         # R = chol((sf2/m)*(phi'*phi) + sn2*eye(2*m));                            % calculate some often-used constants
         A = (self.kern.variance / m_float) * tf.matmul(tf.transpose(phi), phi)\
@@ -112,7 +112,7 @@ class SSGP(GPflow.model.GPModel):
         # phistar = x_tst*w';
         phistar = tf.matmul(Xnew, tf.transpose(w))
         # phistar = [cos(phistar) sin(phistar)];                              % test design matrix
-        phistar = tf.concat(1, [tf.cos(phistar), tf.sin(phistar)])
+        phistar = tf.concat([tf.cos(phistar), tf.sin(phistar)], axis=1)
         # out1(beg_chunk:end_chunk) = phistar*alfa;                           % Predictive mean
         mean = tf.matmul(phistar, alpha)
 

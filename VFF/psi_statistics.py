@@ -30,7 +30,7 @@ def psi1(mean, var, a, b, ms):
     Psi1_cos = Kuf_cos * a
     Psi1_sin = Kuf_sin * a
 
-    return tf.concat(0, [Psi1_cos, Psi1_sin])
+    return tf.concat([Psi1_cos, Psi1_sin], axis=0)
 
 
 def psi2(mean, var, a, b, ms):

@@ -37,7 +37,7 @@ class BlockDiagMat_many:
         ret = []
         start = 0
         for m in self.mats:
-            ret.append(tf.slice(X, begin=tf.pack([start, 0]), size=tf.pack([m.shape[1], -1])))
+            ret.append(tf.slice(X, begin=tf.stack([start, 0]), size=tf.stack([m.shape[1], -1])))
             start = start + m.shape[1]
         return ret
 
@@ -50,7 +50,7 @@ class BlockDiagMat_many:
         start1 = 0
         start2 = 0
         for m in self.mats:
-            ret.append(tf.slice(X, begin=tf.pack([start1, start2]), size=m.shape))
+            ret.append(tf.slice(X, begin=tf.stack([start1, start2]), size=m.shape))
             start1 = start1 + m.shape[0]
             start2 = start2 + m.shape[1]
         return ret
@@ -58,21 +58,21 @@ class BlockDiagMat_many:
     def get(self):
         ret = self.mats[0].get()
         for m in self.mats[1:]:
-            tr_shape = tf.pack([tf.shape(ret)[0], m.shape[1]])
-            bl_shape = tf.pack([m.shape[0], tf.shape(ret)[1]])
-            top = tf.concat(1, [ret, tf.zeros(tr_shape, float_type)])
-            bottom = tf.concat(1, [tf.zeros(bl_shape, float_type), m.get()])
-            ret = tf.concat(0, [top, bottom])
+            tr_shape = tf.stack([tf.shape(ret)[0], m.shape[1]])
+            bl_shape = tf.stack([m.shape[0], tf.shape(ret)[1]])
+            top = tf.concat([ret, tf.zeros(tr_shape, float_type)], axis=1)
+            bottom = tf.concat([tf.zeros(bl_shape, float_type), m.get()], axis=1)
+            ret = tf.concat([top, bottom], axis=0)
         return ret
 
     def logdet(self):
         return reduce(tf.add, [m.logdet() for m in self.mats])
 
     def matmul(self, X):
-        return tf.concat(0, [m.matmul(Xi) for m, Xi in zip(self.mats, self._get_rhs_slices(X))])
+        return tf.concat([m.matmul(Xi) for m, Xi in zip(self.mats, self._get_rhs_slices(X))], axis=0)
 
     def solve(self, X):
-        return tf.concat(0, [m.solve(Xi) for m, Xi in zip(self.mats, self._get_rhs_slices(X))])
+        return tf.concat([m.solve(Xi) for m, Xi in zip(self.mats, self._get_rhs_slices(X))], axis=0)
 
     def trace_KiX(self, X):
         """
@@ -82,22 +82,22 @@ class BlockDiagMat_many:
         return reduce(tf.add, [m.trace_KiX(Xi) for m, Xi in zip(self.mats, self._get_rhs_blocks(X))])
 
     def get_diag(self):
-        return tf.concat(0, [m.get_diag() for m in self.mats])
+        return tf.concat([m.get_diag() for m in self.mats], axis=0)
 
     def inv_diag(self):
-        return tf.concat(0, [m.inv_diag() for m in self.mats])
+        return tf.concat([m.inv_diag() for m in self.mats], axis=0)
 
     def matmul_sqrt(self, X):
-        return tf.concat(0, [m.matmul_sqrt(Xi) for m, Xi in zip(self.mats, self._get_rhs_slices(X))])
+        return tf.concat([m.matmul_sqrt(Xi) for m, Xi in zip(self.mats, self._get_rhs_slices(X))], axis=0)
 
     def matmul_sqrt_transpose(self, X):
         ret = []
         start = np.zeros((2, np.int32))
         for m in self.mats:
-            ret.append(m.matmul_sqrt_transpose(tf.slice(X, begin=start, size=tf.pack([m.sqrt_dims, -1]))))
+            ret.append(m.matmul_sqrt_transpose(tf.slice(X, begin=start, size=tf.stack([m.sqrt_dims, -1]))))
             start[0] += m.sqrt_dims
 
-        return tf.concat(0, ret)
+        return tf.concat(ret, axis=0)
 
 
 class BlockDiagMat:
@@ -116,17 +116,17 @@ class BlockDiagMat:
 
     def _get_rhs_slices(self, X):
         # X1 = X[:self.A.shape[1], :]
-        X1 = tf.slice(X, begin=tf.zeros((2,), tf.int32), size=tf.pack([self.A.shape[1], -1]))
+        X1 = tf.slice(X, begin=tf.zeros((2,), tf.int32), size=tf.stack([self.A.shape[1], -1]))
         # X2 = X[self.A.shape[1]:, :]
-        X2 = tf.slice(X, begin=tf.pack([self.A.shape[1], 0]), size=-tf.ones((2,), tf.int32))
+        X2 = tf.slice(X, begin=tf.stack([self.A.shape[1], 0]), size=-tf.ones((2,), tf.int32))
         return X1, X2
 
     def get(self):
-        tl_shape = tf.pack([self.A.shape[0], self.B.shape[1]])
-        br_shape = tf.pack([self.B.shape[0], self.A.shape[1]])
-        top = tf.concat(1, [self.A.get(), tf.zeros(tl_shape, float_type)])
-        bottom = tf.concat(1, [tf.zeros(br_shape, float_type), self.B.get()])
-        return tf.concat(0, [top, bottom])
+        tl_shape = tf.stack([self.A.shape[0], self.B.shape[1]])
+        br_shape = tf.stack([self.B.shape[0], self.A.shape[1]])
+        top = tf.concat([self.A.get(), tf.zeros(tl_shape, float_type)], axis=1)
+        bottom = tf.concat([tf.zeros(br_shape, float_type), self.B.get()], axis=1)
+        return tf.concat([top, bottom], axis=0)
 
     def logdet(self):
         return self.A.logdet() + self.B.logdet()
@@ -135,13 +135,13 @@ class BlockDiagMat:
         X1, X2 = self._get_rhs_slices(X)
         top = self.A.matmul(X1)
         bottom = self.B.matmul(X2)
-        return tf.concat(0, [top, bottom])
+        return tf.concat([top, bottom], axis=0)
 
     def solve(self, X):
         X1, X2 = self._get_rhs_slices(X)
         top = self.A.solve(X1)
         bottom = self.B.solve(X2)
-        return tf.concat(0, [top, bottom])
+        return tf.concat([top, bottom], axis=0)
 
     def trace_KiX(self, X):
         """
@@ -154,24 +154,24 @@ class BlockDiagMat:
         return top + bottom
 
     def get_diag(self):
-        return tf.concat(0, [self.A.get_diag(), self.B.get_diag()])
+        return tf.concat([self.A.get_diag(), self.B.get_diag()], axis=0)
 
     def inv_diag(self):
-        return tf.concat(0, [self.A.inv_diag(), self.B.inv_diag()])
+        return tf.concat([self.A.inv_diag(), self.B.inv_diag()], axis=0)
 
     def matmul_sqrt(self, X):
         X1, X2 = self._get_rhs_slices(X)
         top = self.A.matmul_sqrt(X1)
         bottom = self.B.matmul_sqrt(X2)
-        return tf.concat(0, [top, bottom])
+        return tf.concat([top, bottom], axis=0)
 
     def matmul_sqrt_transpose(self, X):
-        X1 = tf.slice(X, begin=tf.zeros((2,), tf.int32), size=tf.pack([self.A.sqrt_dims, -1]))
-        X2 = tf.slice(X, begin=tf.pack([self.A.sqrt_dims, 0]), size=-tf.ones((2,), tf.int32))
+        X1 = tf.slice(X, begin=tf.zeros((2,), tf.int32), size=tf.stack([self.A.sqrt_dims, -1]))
+        X2 = tf.slice(X, begin=tf.stack([self.A.sqrt_dims, 0]), size=-tf.ones((2,), tf.int32))
         top = self.A.matmul_sqrt_transpose(X1)
         bottom = self.B.matmul_sqrt_transpose(X2)
 
-        return tf.concat(0, [top, bottom])
+        return tf.concat([top, bottom], axis=0)
 
 
 class LowRankMat:
@@ -255,7 +255,7 @@ class LowRankMat:
 
         DB = tf.expand_dims(tf.sqrt(self.d), 1) * B
         VTB = tf.matmul(tf.transpose(self.W), B)
-        return tf.concat(0, [DB, VTB])
+        return tf.concat([DB, VTB], axis=0)
 
     def matmul_sqrt_transpose(self, B):
         """
@@ -265,8 +265,8 @@ class LowRankMat:
 
         This method right-multiplies the transposed-sqrt by the matrix B
         """
-        B1 = tf.slice(B, tf.zeros((2,), tf.int32), tf.pack([tf.size(self.d), -1]))
-        B2 = tf.slice(B, tf.pack([tf.size(self.d), 0]), -tf.ones((2,), tf.int32))
+        B1 = tf.slice(B, tf.zeros((2,), tf.int32), tf.stack([tf.size(self.d), -1]))
+        B2 = tf.slice(B, tf.stack([tf.size(self.d), 0]), -tf.ones((2,), tf.int32))
         return tf.expand_dims(tf.sqrt(self.d), 1) * B1 + tf.matmul(self.W, B2)
 
 
@@ -339,7 +339,7 @@ class Rank1Mat:
 
         DB = tf.expand_dims(tf.sqrt(self.d), 1) * B
         VTB = tf.matmul(tf.expand_dims(self.v, 0), B)
-        return tf.concat(0, [DB, VTB])
+        return tf.concat([DB, VTB], axis=0)
 
     def matmul_sqrt_transpose(self, B):
         """
@@ -349,8 +349,8 @@ class Rank1Mat:
 
         This method right-multiplies the transposed-sqrt by the matrix B
         """
-        B1 = tf.slice(B, tf.zeros((2,), tf.int32), tf.pack([tf.size(self.d), -1]))
-        B2 = tf.slice(B, tf.pack([tf.size(self.d), 0]), -tf.ones((2,), tf.int32))
+        B1 = tf.slice(B, tf.zeros((2,), tf.int32), tf.stack([tf.size(self.d), -1]))
+        B2 = tf.slice(B, tf.stack([tf.size(self.d), 0]), -tf.ones((2,), tf.int32))
         return tf.expand_dims(tf.sqrt(self.d), 1) * B1 + tf.matmul(tf.expand_dims(self.v, 1), B2)
 
 
