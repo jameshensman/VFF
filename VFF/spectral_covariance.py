@@ -111,7 +111,7 @@ def make_Kuf(k, X, a, b, ms):
         arg = np.sqrt(3) * tf.abs(tf.transpose(X) - a) / k.lengthscales
         edge = tf.tile((1 + arg) * tf.exp(-arg), [len(ms), 1])
         Kuf_cos = tf.where(lt_a_cos, edge, Kuf_cos)
-        arg = np.sqrt(3) * tf.abs(tf.transpose(X) - a) / k.lengthscales
+        arg = np.sqrt(3) * tf.abs(tf.transpose(X) - b) / k.lengthscales
         edge = tf.tile((1 + arg) * tf.exp(-arg), [len(ms), 1])
         Kuf_cos = tf.where(gt_b_cos, edge, Kuf_cos)
 
