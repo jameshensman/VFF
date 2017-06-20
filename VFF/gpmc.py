@@ -18,7 +18,6 @@ from functools import reduce
 import numpy as np
 import GPflow
 import tensorflow as tf
-from matplotlib import pyplot as plt
 from .spectral_covariance import make_Kuu, make_Kuf
 from .kronecker_ops import kvs_dot_vec
 
@@ -206,6 +205,8 @@ class GPMC_kron(GPflow.model.GPModel):
 
 
 if __name__ == '__main__':
+    from matplotlib import pyplot as plt
+
     np.random.seed(0)
     X = np.random.rand(80, 1)*10 - 5
     X = np.sort(X, axis=0)
