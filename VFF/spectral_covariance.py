@@ -121,6 +121,8 @@ def make_Kuf(k, X, a, b, ms):
         arg = np.sqrt(3) * tf.abs(tf.transpose(X) - b) / k.lengthscales
         edge = (tf.transpose(X) - b) * tf.exp(-arg) * omegas_sin[:, None]
         Kuf_sin = tf.where(gt_b_sin, edge, Kuf_sin)
+    else: # isinstance(k, GPflow.kernels.Matern52):
+        raise NotImplementedError
     return tf.concat([Kuf_cos, Kuf_sin], axis=0)
 
 

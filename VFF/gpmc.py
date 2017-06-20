@@ -153,7 +153,7 @@ class GPMC_kron(GPflow.model.GPModel):
             elif isinstance(kern, GPflow.kernels.Matern32):
                 Ncos_d += 1
                 Nsin_d += 1
-            elif isinstance(kern, GPflow.kernels.Matern32):
+            elif isinstance(kern, GPflow.kernels.Matern52):
                 Ncos_d += 2
                 Nsin_d += 1
             else:
