@@ -18,7 +18,6 @@ from functools import reduce
 import numpy as np
 import GPflow
 import tensorflow as tf
-from matplotlib import pyplot as plt
 from .spectral_covariance import make_Kuu, make_Kuf
 from .kronecker_ops import kvs_dot_vec
 
@@ -125,6 +124,8 @@ class SFGPMC_kron(GPflow.model.GPModel):
 
 
 if __name__ == '__main__':
+    from matplotlib import pyplot as plt
+
     np.random.seed(0)
     X = np.random.rand(500, 2) * 2 - 1
     Y = np.cos(3*X[:, 0:1]) + 2*np.sin(5*X[:, 1:] * X[:, 0:1]) + np.random.randn(X.shape[0], 1)*0.8

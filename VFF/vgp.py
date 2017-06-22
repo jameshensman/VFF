@@ -18,7 +18,6 @@ from functools import reduce
 import numpy as np
 import GPflow
 import tensorflow as tf
-from matplotlib import pyplot as plt
 from .spectral_covariance import make_Kuu, make_Kuf, make_Kuf_np
 from .kronecker_ops import kvs_dot_vec, kron_vec_apply, kvs_dot_mat, kron_mat_apply, kron
 float_type = GPflow.settings.dtypes.float_type
@@ -98,6 +97,8 @@ class VGP_1d(GPflow.model.GPModel):
 
 
 if __name__ == '__main__':
+    from matplotlib import pyplot as plt
+
     np.random.seed(0)
     X = np.random.rand(80, 1)*10 - 5
     X = np.sort(X, axis=0)
