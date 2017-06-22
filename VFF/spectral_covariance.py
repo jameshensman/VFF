@@ -168,7 +168,7 @@ def make_Kuf_np_with_edges(k, X, a, b, ms):
 
     elif isinstance(k, GPflow.kernels.Matern52):
         assert not (np.any(X < a) or np.any(X > b))
-
+        raise NotImplementedError
     else:
         raise NotImplementedError
 
