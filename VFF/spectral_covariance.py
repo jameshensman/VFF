@@ -111,7 +111,7 @@ def make_Kuf(k, X, a, b, ms):
         arg = np.sqrt(3) * tf.abs(tf.transpose(X) - a) / k.lengthscales
         edge = tf.tile((1 + arg) * tf.exp(-arg), [len(ms), 1])
         Kuf_cos = tf.where(lt_a_cos, edge, Kuf_cos)
-        arg = np.sqrt(3) * tf.abs(tf.transpose(X) - a) / k.lengthscales
+        arg = np.sqrt(3) * tf.abs(tf.transpose(X) - b) / k.lengthscales
         edge = tf.tile((1 + arg) * tf.exp(-arg), [len(ms), 1])
         Kuf_cos = tf.where(gt_b_cos, edge, Kuf_cos)
 
@@ -121,6 +121,12 @@ def make_Kuf(k, X, a, b, ms):
         arg = np.sqrt(3) * tf.abs(tf.transpose(X) - b) / k.lengthscales
         edge = (tf.transpose(X) - b) * tf.exp(-arg) * omegas_sin[:, None]
         Kuf_sin = tf.where(gt_b_sin, edge, Kuf_sin)
+    elif isinstance(k, GPflow.kernels.Matern52):
+        # edges not implemented yet
+        Kuf_cos = tf.with_dependencies([tf.assert_greater_equal(X, a)], Kuf_cos, message='Edges not implemented for Matern52', name='assert_left_edge')
+        Kuf_sin = tf.with_dependencies([tf.assert_less_equal   (X, b)], Kuf_sin, message='Edges not implemented for Matern52', name='assert_right_edge')
+    else:
+        raise NotImplementedError
     return tf.concat([Kuf_cos, Kuf_sin], axis=0)
 
 
@@ -143,8 +149,8 @@ def make_Kuf_np_with_edges(k, X, a, b, ms):
         Kuf_sin[:, np.logical_or(X.flatten() < a, X.flatten() > b)] = 0
         X_a = X[X.flatten() < a].T
         X_b = X[X.flatten() > b].T
-        Kuf_cos[:, X.flatten() < a] = np.exp(-np.abs(X_a-a)/k.lengthscales.value)
-        Kuf_cos[:, X.flatten() > b] = np.exp(-np.abs(X_b-b)/k.lengthscales.value)
+        Kuf_cos[:, X.flatten() < a] = np.exp(- np.abs(X_a - a) / k.lengthscales.value)
+        Kuf_cos[:, X.flatten() > b] = np.exp(- np.abs(X_b - b) / k.lengthscales.value)
 
     elif isinstance(k, GPflow.kernels.Matern32):
         X_a = X[X.flatten() < a].T
@@ -158,23 +164,12 @@ def make_Kuf_np_with_edges(k, X, a, b, ms):
         arg = np.sqrt(3) * np.abs(a - X_a) / k.lengthscales.value
         Kuf_sin[:, X.flatten() < a] = (X_a - a) * np.exp(-arg) * omegas_sin[:, None]
         arg = np.sqrt(3) * np.abs(X_b - b) / k.lengthscales.value
-        Kuf_sin[:, X.flatten() > b] = (X_b-b) * np.exp(-arg) * omegas_sin[:, None]
+        Kuf_sin[:, X.flatten() > b] = (X_b - b) * np.exp(-arg) * omegas_sin[:, None]
 
     elif isinstance(k, GPflow.kernels.Matern52):
-        X_a = X[X.flatten() < a].T
-        X_b = X[X.flatten() > b].T
-
-        # arg = np.sqrt(5) * np.abs(X_a - a) / k.lengthscales.value
-        # Kuf_cos[:, X.flatten() < a] = (1 + arg) * np.exp(-arg)
-        # arg = np.sqrt(3) * np.abs(X_b - b) / k.lengthscales.value
-        # Kuf_cos[:, X.flatten() > b] = (1 + arg) * np.exp(-arg)
-
-        # arg = np.sqrt(5) * np.abs(a - X_a) / k.lengthscales.value
-        # Kuf_sin[:, X.flatten() < a] = (X_a - a) * np.exp(-arg) * omegas_sin[:, None]
-        arg = np.sqrt(5) * np.abs(X_b - b) / k.lengthscales.value
-        Kuf_sin[:, X.flatten() > b] = (3./5.) / k.lengthscales.value ** 2 * omegas_sin[:, None] * np.exp(-arg) *\
-            ((3./5.)/k.lengthscales.value**2 * (X_b - b) + 5 * np.sqrt(5) / 3. / k.lengthscales.value**3 * (X_b - b)**2)
-
+        assert not (np.any(X < a) or np.any(X > b))
+        raise NotImplementedError
     else:
         raise NotImplementedError
+
     return np.vstack([Kuf_cos, Kuf_sin])
