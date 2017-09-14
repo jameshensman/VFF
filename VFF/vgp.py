@@ -261,7 +261,7 @@ class VGP_kron(GPflow.model.GPModel):
         elif use_extra_ranks:
             self.q_sqrt_W = GPflow.param.Param(np.zeros((np.prod(self.Ms), use_extra_ranks)))
 
-        #pre-compute Kuf
+        # pre-compute Kuf
         self._Kuf = [make_Kuf_np(X[:, i:i+1], ai, bi, self.ms)
                for i, (ai, bi) in enumerate(zip(self.a, self.b))]
 
