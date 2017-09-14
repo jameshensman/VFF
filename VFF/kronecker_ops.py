@@ -77,6 +77,12 @@ def make_kvs(k):
     """Compute the kronecker-vector stack of the list of matrices k"""
     return reduce(make_kvs_two, k)
 
+def make_kvs_two_np(A, B):
+    # return np.tile(A, [B.shape[0], 1]) * np.repeat(B, A.shape[0], axis=0)
+    return np.repeat(A, B.shape[0], axis=0) * np.tile(B, [A.shape[0], 1])
+
+def make_kvs_np(A_list):
+    return reduce(make_kvs_two_np, A_list)
 
 def kron_vec_apply(K, vec, attr):
     """

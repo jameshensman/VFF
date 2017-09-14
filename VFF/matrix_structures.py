@@ -14,7 +14,6 @@
 
 
 import tensorflow as tf
-from GPflow.tf_wraps import eye
 from GPflow import settings
 from functools import reduce
 float_type = settings.dtypes.float_type
@@ -73,6 +72,9 @@ class BlockDiagMat_many:
 
     def solve(self, X):
         return tf.concat([m.solve(Xi) for m, Xi in zip(self.mats, self._get_rhs_slices(X))], axis=0)
+
+    def inv(self):
+        return BlockDiagMat_many([mat.inv() for mat in self.mats])
 
     def trace_KiX(self, X):
         """
@@ -143,6 +145,9 @@ class BlockDiagMat:
         bottom = self.B.solve(X2)
         return tf.concat([top, bottom], axis=0)
 
+    def inv(self):
+        return BlockDiagMat(self.A.inv(), self.B.inv())
+
     def trace_KiX(self, X):
         """
         X is a square matrix of the same size as this one.
@@ -198,7 +203,7 @@ class LowRankMat:
 
     def logdet(self):
         part1 = tf.reduce_sum(tf.log(self.d))
-        I = eye(tf.shape(self.W)[1])
+        I = tf.eye(tf.shape(self.W)[1], float_type)
         M = I + tf.matmul(tf.transpose(self.W) / self.d, self.W)
         part2 = 2*tf.reduce_sum(tf.log(tf.diag_part(tf.cholesky(M))))
         return part1 + part2
@@ -217,11 +222,20 @@ class LowRankMat:
         DiB = B / d_col
         DiW = self.W / d_col
         WTDiB = tf.matmul(tf.transpose(DiW), B)
-        M = eye(tf.shape(self.W)[1]) + tf.matmul(tf.transpose(DiW), self.W)
+        M = tf.eye(tf.shape(self.W)[1], float_type) + tf.matmul(tf.transpose(DiW), self.W)
         L = tf.cholesky(M)
         tmp1 = tf.matrix_triangular_solve(L, WTDiB, lower=True)
         tmp2 = tf.matrix_triangular_solve(tf.transpose(L), tmp1, lower=False)
         return DiB - tf.matmul(DiW, tmp2)
+
+    def inv(self):
+        di = tf.reciprocal(self.d)
+        d_col = tf.expand_dims(self.d, 1)
+        DiW = self.W / d_col
+        M = tf.eye(tf.shape(self.W)[1], float_type) + tf.matmul(tf.transpose(DiW), self.W)
+        L = tf.cholesky(M)
+        v = tf.transpose(tf.matrix_triangular_solve(L, tf.transpose(DiW), lower=True))
+        return LowRankMatNeg(di, V)
 
     def trace_KiX(self, X):
         """
@@ -232,14 +246,14 @@ class LowRankMat:
         R = self.W / d_col
         RTX = tf.matmul(tf.transpose(R), X)
         RTXR = tf.matmul(RTX, R)
-        M = eye(tf.shape(self.W)[1]) + tf.matmul(tf.transpose(R), self.W)
+        M = tf.eye(tf.shape(self.W)[1], float_type) + tf.matmul(tf.transpose(R), self.W)
         Mi = tf.matrix_inverse(M)
         return tf.reduce_sum(tf.diag_part(X) * 1./self.d) - tf.reduce_sum(RTXR * Mi)
 
     def inv_diag(self):
         d_col = tf.expand_dims(self.d, 1)
         WTDi = tf.transpose(self.W / d_col)
-        M = eye(tf.shape(self.W)[1]) + tf.matmul(WTDi, self.W)
+        M = tf.eye(tf.shape(self.W)[1], float_type) + tf.matmul(WTDi, self.W)
         L = tf.cholesky(M)
         tmp1 = tf.matrix_triangular_solve(L, WTDi, lower=True)
         return 1./self.d - tf.reduce_sum(tf.square(tmp1), 0)
@@ -268,6 +282,28 @@ class LowRankMat:
         B1 = tf.slice(B, tf.zeros((2,), tf.int32), tf.stack([tf.size(self.d), -1]))
         B2 = tf.slice(B, tf.stack([tf.size(self.d), 0]), -tf.ones((2,), tf.int32))
         return tf.expand_dims(tf.sqrt(self.d), 1) * B1 + tf.matmul(self.W, B2)
+
+
+class LowRankMatNeg:
+    def __init__(self, d, W):
+        """
+        A matrix of the form
+
+            diag(d) - W W^T
+
+        (note the minus sign)
+        """
+        self.d = d
+        self.W = W
+
+    @property
+    def shape(self):
+        return (tf.size(self.d), tf.size(self.d))
+
+    def get(self):
+        return tf.diag(self.d) - tf.matmul(self.W, tf.transpose(self.W))
+
+
 
 
 class Rank1Mat:
@@ -308,6 +344,13 @@ class Rank1Mat:
         div = tf.expand_dims(div, 1)
         return B / tf.expand_dims(self.d, 1) -\
             tf.matmul(div/c, tf.matmul(tf.transpose(div), B))
+
+    def inv(self):
+        di = tf.reciprocal(self.d)
+        Div = self.v * di
+        M = 1. + tf.reduce_sum(Div * self.v)
+        v_new = Div / tf.sqrt(M)
+        return Rank1MatNeg(di, v_new)
 
     def trace_KiX(self, X):
         """
@@ -354,6 +397,27 @@ class Rank1Mat:
         return tf.expand_dims(tf.sqrt(self.d), 1) * B1 + tf.matmul(tf.expand_dims(self.v, 1), B2)
 
 
+class Rank1MatNeg:
+    def __init__(self, d, v):
+        """
+        A matrix of the form
+
+            diag(d) - v v^T
+
+        (note the minus sign)
+        """
+        self.d = d
+        self.v = v
+
+    @property
+    def shape(self):
+        return (tf.size(self.d), tf.size(self.d))
+
+    def get(self):
+        W = tf.expand_dims(self.v, 1)
+        return tf.diag(self.d) - tf.matmul(W, tf.transpose(W))
+
+
 class DiagMat:
     def __init__(self, d):
         self.d = d
@@ -377,6 +441,9 @@ class DiagMat:
 
     def solve(self, B):
         return B / tf.expand_dims(self.d, 1)
+
+    def inv(self):
+        return DiagMat(tf.reciprocal(self.d))
 
     def trace_KiX(self, X):
         """

@@ -19,6 +19,7 @@ import GPflow
 import tensorflow as tf
 from functools import reduce
 from .spectral_covariance import make_Kuu, make_Kuf, make_Kuf_np
+from .kronecker_ops import kron, make_kvs_np, make_kvs
 from .matrix_structures import BlockDiagMat_many
 from GPflow import settings
 float_type = settings.dtypes.float_type
@@ -49,6 +50,9 @@ class GPR_1d(GPflow.model.GPModel):
         self.tr_YTY = np.sum(np.square(Y))
 
     def build_likelihood(self):
+        return reduce(tf.add, self.build_likelihood_terms())
+
+    def build_likelihood_terms(self):
         Kdiag = self.kern.Kdiag(self.X)
         Kuu = make_Kuu(self.kern, self.a, self.b, self.ms)
         sigma2 = self.likelihood.variance
@@ -62,15 +66,18 @@ class GPR_1d(GPflow.model.GPModel):
         # compute log marginal bound
         ND = tf.cast(tf.size(self.Y), float_type)
         D = tf.cast(tf.shape(self.Y)[1], float_type)
-        bound = -0.5 * ND * tf.log(2 * np.pi * sigma2)
-        bound += -0.5 * D * log_det_P
-        bound += 0.5 * D * Kuu.logdet()
-        bound += -0.5 * self.tr_YTY / sigma2
-        bound += 0.5 * tf.reduce_sum(tf.square(c))
-        bound += -0.5 * tf.reduce_sum(Kdiag)/sigma2
-        bound += 0.5 * Kuu.trace_KiX(self.KufKfu) / sigma2
+        return (-0.5 * ND * tf.log(2 * np.pi * sigma2),
+                -0.5 * D * log_det_P,
+                0.5 * D * Kuu.logdet(),
+                -0.5 * self.tr_YTY / sigma2,
+                0.5 * tf.reduce_sum(tf.square(c)),
+                -0.5 * tf.reduce_sum(Kdiag)/sigma2,
+                0.5 * Kuu.trace_KiX(self.KufKfu) / sigma2)
 
         return bound
+    @GPflow.param.AutoFlow()
+    def compute_likelihood_terms(self):
+        return self.build_likelihood_terms()
 
     def build_predict(self, Xnew, full_cov=False):
         Kuu = make_Kuu(self.kern, self.a, self.b, self.ms)
@@ -231,3 +238,103 @@ class GPR_additive(GPflow.model.GPModel):
         var = [v - tf.reduce_sum(KiKus_i * Kus_i, 0) for v, KiKus_i, Kus_i in zip(var, KiKus, Kus)]
         var = [tf.expand_dims(v, 1) for v in var]
         return tf.concat(mean, axis=1), tf.concat(var, axis=1)
+
+
+class GPRKron(GPflow.model.GPModel):
+    def __init__(self, X, Y, ms, a, b, kerns):
+        for kern in kerns:
+            assert isinstance(kern, (GPflow.kernels.Matern12,
+                                     GPflow.kernels.Matern32,
+                                     GPflow.kernels.Matern52))
+        likelihood = GPflow.likelihoods.Gaussian()
+        mean_function = GPflow.mean_functions.Zero()
+        GPflow.model.GPModel.__init__(self, X, Y, None,
+                                      likelihood, mean_function)
+        self.kerns = GPflow.param.ParamList(kerns)
+        self.num_data = X.shape[0]
+        self.num_latent = Y.shape[1]
+        self.a = a
+        self.b = b
+        self.ms = ms
+        
+        # count the inducing variables:
+        self.Ms = []
+        for kern in kerns:
+            Ncos_d = self.ms.size
+            Nsin_d = self.ms.size - 1
+            self.Ms.append(Ncos_d + Nsin_d)
+
+        assert np.all(X > a)
+        assert np.all(X < b)
+
+        # pre compute static quantities
+        Kuf = [make_Kuf_np(X[:, i:i+1], a, b, self.ms) for i, (a, b) in enumerate(zip(self.a, self.b))]
+        self.Kuf = make_kvs_np(Kuf)
+        self.KufY = np.dot(self.Kuf, Y)
+        self.KufKfu = np.dot(self.Kuf, self.Kuf.T)
+        self.tr_YTY = np.sum(np.square(Y))
+
+    def build_likelihood(self):
+        return reduce(tf.add, self.build_likelihood_terms())
+
+    def build_likelihood_terms(self):
+        Kdiag = reduce(tf.multiply, [k.Kdiag(self.X[:, i:i+1]) for i, k in enumerate(self.kerns)])
+        Kuu = [make_Kuu(k, a, b, self.ms) for k, a, b, in zip(self.kerns, self.a, self.b)]
+        Kuu_solid = kron([Kuu_d.get() for Kuu_d in Kuu])
+        Kuu_inv_solid = kron([Kuu_d.inv().get() for Kuu_d in Kuu])
+        sigma2 = self.likelihood.variance
+
+        # Compute intermediate matrices
+        P = self.KufKfu / sigma2 + Kuu_solid
+        L = tf.cholesky(P)
+        log_det_P = tf.reduce_sum(tf.log(tf.square(tf.diag_part(L))))
+        c = tf.matrix_triangular_solve(L, self.KufY) / sigma2
+
+        Kuu_logdets = [K.logdet() for K in Kuu]
+        N_others = [float(np.prod(self.Ms)) / M for M in self.Ms]
+        Kuu_logdet = reduce(tf.add, [N*logdet for N, logdet in zip(N_others, Kuu_logdets)])
+
+        # compute log marginal bound
+        ND = tf.cast(tf.size(self.Y), float_type)
+        D = tf.cast(tf.shape(self.Y)[1], float_type)
+        return (-0.5 * ND * tf.log(2 * np.pi * sigma2), 
+                -0.5 * D * log_det_P,
+                0.5 * D * Kuu_logdet,
+                -0.5 * self.tr_YTY / sigma2,
+                0.5 * tf.reduce_sum(tf.square(c)),
+                -0.5 * tf.reduce_sum(Kdiag)/sigma2,
+                0.5 * tf.reduce_sum(Kuu_inv_solid * self.KufKfu) / sigma2)
+
+    @GPflow.param.AutoFlow()
+    def compute_likelihood_terms(self):
+        return self.build_likelihood_terms()
+
+    def build_predict(self, Xnew, full_cov=False):
+        Kuu = [make_Kuu(k, a, b, self.ms) for k, a, b, in zip(self.kerns, self.a, self.b)]
+        Kuu_solid = kron([Kuu_d.get() for Kuu_d in Kuu])
+        Kuu_inv_solid = kron([Kuu_d.inv().get() for Kuu_d in Kuu])
+        sigma2 = self.likelihood.variance
+
+        # Compute intermediate matrices
+        P = self.KufKfu / sigma2 + Kuu_solid
+        L = tf.cholesky(P)
+        log_det_P = tf.reduce_sum(tf.log(tf.square(tf.diag_part(L))))
+        c = tf.matrix_triangular_solve(L, self.KufY) / sigma2
+
+        Kus = [make_Kuf(k, Xnew[:, i:i+1], a, b, self.ms) for i, (k, a, b) in enumerate(zip(self.kerns, self.a, self.b))]
+        Kus = tf.transpose(make_kvs([tf.transpose(Kus_d) for Kus_d in Kus]))
+        tmp = tf.matrix_triangular_solve(L, Kus)
+        mean = tf.matmul(tf.transpose(tmp), c)
+        KiKus = tf.matmul(Kuu_inv_solid, Kus)
+        if full_cov:
+            raise NotImplementedError
+        else:
+            var = reduce(tf.multiply, [k.Kdiag(Xnew[:, i:i+1]) for i, k in enumerate(self.kerns)])
+            var += tf.reduce_sum(tf.square(tmp), 0)
+            var -= tf.reduce_sum(KiKus * Kus, 0)
+            shape = tf.stack([1, tf.shape(self.Y)[1]])
+            var = tf.tile(tf.expand_dims(var, 1), shape)
+        return mean, var
+
+
+
