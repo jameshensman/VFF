@@ -37,9 +37,29 @@ def plot_pred(d):
             dim = di[di.num_inducing == m]
             a.plot(dim.time, -dim.mean_log_pred_x + dim.mean_log_pred_y, 'o', label='M={}'.format(int(m)))
             a.semilogx()
-            a.set_ylim(-0.02, 0.7)
-            a.set_xlim(10**-1, 10**2)
+            #a.set_ylim(-0.02, 0.7)
+            #a.set_xlim(10**-1, 10**5)
         plt.legend()
+
+def plot_all(dim):
+    d_full = pd.read_csv('results/full.csv', index_col=0)
+    d_sparse_opt = pd.read_csv('results/sparse_opt.csv', index_col=0)
+    d_sparse_kmeans = pd.read_csv('results/sparse_kmeans.csv', index_col=0)
+    d_kron_opt = pd.read_csv('results/kron_opt.csv', index_col=0)
+    d_kron = pd.read_csv('results/kron.csv', index_col=0)
+    
+    names = ['VFF', 'VFF opt', 'sparse', 'sparse opt']
+    fig, ax = plt.subplots(1,1,figsize=(5,5))
+    for i, d in enumerate([d_kron, d_kron_opt, d_sparse_kmeans, d_sparse_opt]):
+        df = pd.merge(d[d.dim==dim], d_full[d_full.dim==dim], on=['rep'])
+        ax.plot(df.time,-df.mean_log_pred_x + df.mean_log_pred_y, 'o', label=names[i])
+        ax.set_ylim((-0.02,1.6))
+        ax.semilogx()
+        ax.set_title('dimension {}'.format(dim))
+    plt.legend()
+
+for d in range(1,6):
+    plot_all(d)
 
 plot_pred(pd.read_csv('results/sparse_opt.csv', index_col=0))
 plot_pred(pd.read_csv('results/sparse_kmeans.csv', index_col=0))
