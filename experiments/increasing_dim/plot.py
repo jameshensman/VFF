@@ -61,10 +61,10 @@ def plot_all(dim):
 for d in range(1,6):
     plot_all(d)
 
-plot_pred(pd.read_csv('results/sparse_opt.csv', index_col=0))
-plot_pred(pd.read_csv('results/sparse_kmeans.csv', index_col=0))
-plot_pred(pd.read_csv('results/kron_opt.csv', index_col=0))
-plot_pred(pd.read_csv('results/kron.csv', index_col=0))
+# plot_pred(pd.read_csv('results/sparse_opt.csv', index_col=0))
+# plot_pred(pd.read_csv('results/sparse_kmeans.csv', index_col=0))
+# plot_pred(pd.read_csv('results/kron_opt.csv', index_col=0))
+# plot_pred(pd.read_csv('results/kron.csv', index_col=0))
 
 # plot_KL(pd.read_csv('sparse_opt.csv', index_col=0))
 # plot_KL(pd.read_csv('sparse_kmeans.csv', index_col=0))
