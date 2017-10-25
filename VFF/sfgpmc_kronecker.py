@@ -16,7 +16,7 @@
 from __future__ import print_function, absolute_import
 from functools import reduce
 import numpy as np
-import GPflow
+import gpflow
 import tensorflow as tf
 from .spectral_covariance import make_Kuu, make_Kuf
 from .kronecker_ops import kvs_dot_vec
@@ -36,7 +36,7 @@ def kron_vec_sqrt_transpose(K, vec):
     return reduce(f, K, vec)
 
 
-class SFGPMC_kron(GPflow.model.GPModel):
+class SFGPMC_kron(gpflow.model.GPModel):
     def __init__(self, X, Y, ms, a, b, kerns, likelihood):
         """
         X is a np array of stimuli
@@ -45,17 +45,17 @@ class SFGPMC_kron(GPflow.model.GPModel):
         a is a np array of the lower limits
         b is a np array of the upper limits
         kerns is a list of (Matern) kernels, one for each column of X
-        likelihood is a GPflow likelihood
+        likelihood is a gpflow likelihood
 
         # Note: we use the same frequencies for each dimension in this code for simplicity.
         """
         assert a.size == b.size == len(kerns) == X.shape[1]
         for kern in kerns:
-            assert isinstance(kern, (GPflow.kernels.Matern12,
-                                     GPflow.kernels.Matern32,
-                                     GPflow.kernels.Matern52))
-        mf = GPflow.mean_functions.Zero()
-        GPflow.model.GPModel.__init__(self, X, Y, kern=None,
+            assert isinstance(kern, (gpflow.kernels.Matern12,
+                                     gpflow.kernels.Matern32,
+                                     gpflow.kernels.Matern52))
+        mf = gpflow.mean_functions.Zero()
+        gpflow.model.GPModel.__init__(self, X, Y, kern=None,
                                       likelihood=likelihood, mean_function=mf)
         self.num_data = X.shape[0]
         self.num_latent = 1  # multiple columns not supported in this version
@@ -68,22 +68,22 @@ class SFGPMC_kron(GPflow.model.GPModel):
         for kern in kerns:
             Ncos_d = self.ms.size
             Nsin_d = self.ms.size - 1
-            if isinstance(kern, GPflow.kernels.Matern12):
+            if isinstance(kern, gpflow.kernels.Matern12):
                 Ncos_d += 1
-            elif isinstance(kern, GPflow.kernels.Matern32):
+            elif isinstance(kern, gpflow.kernels.Matern32):
                 Ncos_d += 1
                 Nsin_d += 1
-            elif isinstance(kern, GPflow.kernels.Matern32):
+            elif isinstance(kern, gpflow.kernels.Matern32):
                 Ncos_d += 2
                 Nsin_d += 1
             else:
                 raise NotImplementedError
             self.Ms.append(Ncos_d + Nsin_d)
 
-        self.kerns = GPflow.param.ParamList(kerns)
+        self.kerns = gpflow.param.ParamList(kerns)
 
-        self.V = GPflow.param.Param(np.zeros((np.prod(self.Ms), 1)))
-        self.V.prior = GPflow.priors.Gaussian(0., 1.)
+        self.V = gpflow.param.Param(np.zeros((np.prod(self.Ms), 1)))
+        self.V.prior = gpflow.priors.Gaussian(0., 1.)
 
     def build_predict(self, X, full_cov=False):
         Kuf = [make_Kuf(k, X[:, i:i+1], a, b, self.ms) for i, (k, a, b) in enumerate(zip(self.kerns, self.a, self.b))]
@@ -153,8 +153,8 @@ if __name__ == '__main__':
         ax2.set_xlim(-1.5, 1.5)
         ax2.set_ylim(-1.5, 1.5)
 
-    lik = GPflow.likelihoods.Exponential
-    for k in [GPflow.kernels.Matern32]:
+    lik = gpflow.likelihoods.Exponential
+    for k in [gpflow.kernels.Matern32]:
 
         a = X.min(0) - 1.5
         b = X.max(0) + 1.5
@@ -162,7 +162,7 @@ if __name__ == '__main__':
         Ms = np.arange(10)
 
         m = SFGPMC_kron(X, Y, Ms, a=a, b=b, kerns=[k(1), k(1)], likelihood=lik())
-        m0 = GPflow.gpmc.GPMC(X, Y, kern=k(1, active_dims=[0]) * k(1, active_dims=[1]), likelihood=lik())
+        m0 = gpflow.gpmc.GPMC(X, Y, kern=k(1, active_dims=[0]) * k(1, active_dims=[1]), likelihood=lik())
         # m.kern.matern32_1
 
         # fix the kernels

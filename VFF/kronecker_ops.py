@@ -15,7 +15,7 @@
 
 import tensorflow as tf
 from functools import reduce
-import GPflow
+import gpflow
 import numpy as np
 
 
@@ -143,7 +143,7 @@ def kvs_dot_vec_loop(k, c):
 
     N = tf.shape(k[0])[0]
     i = tf.constant(0)
-    ret = tf.zeros(0, GPflow.settings.dtypes.float_type)
+    ret = tf.zeros(0, gpflow.settings.dtypes.float_type)
 
     def body(i, ret):
         ret_i = inner([tf.slice(kd, [i, 0], [1, -1]) for kd in k], c)

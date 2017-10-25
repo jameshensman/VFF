@@ -14,7 +14,7 @@
 
 
 import tensorflow as tf
-from GPflow import settings
+from gpflow import settings
 from functools import reduce
 float_type = settings.dtypes.float_type
 import numpy as np

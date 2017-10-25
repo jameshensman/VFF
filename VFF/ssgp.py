@@ -13,12 +13,12 @@
 # limitations under the License.
 
 
-import GPflow
+import gpflow
 import numpy as np
 import tensorflow as tf
 
 
-class SSGP(GPflow.model.GPModel):
+class SSGP(gpflow.model.GPModel):
     """
     The Sparse Spectrum GP, judiciously copied from Miguel Lazaro Gredilla's
     MATLAB code, available at http://www.tsc.uc3m.es/~miguel/downloads.php. His
@@ -26,18 +26,18 @@ class SSGP(GPflow.model.GPModel):
     """
 
     def __init__(self, X, Y, kern, num_basis=10):
-        lik = GPflow.likelihoods.Gaussian()
-        mf = GPflow.mean_functions.Zero()
-        GPflow.model.GPModel.__init__(self, X, Y, kern=kern, likelihood=lik, mean_function=mf)
+        lik = gpflow.likelihoods.Gaussian()
+        mf = gpflow.mean_functions.Zero()
+        gpflow.model.GPModel.__init__(self, X, Y, kern=kern, likelihood=lik, mean_function=mf)
         input_dim = self.X.shape[1]
-        if isinstance(kern, GPflow.kernels.RBF):
-            self.omega = GPflow.param.Param(np.random.randn(num_basis, input_dim))
-        elif isinstance(kern, GPflow.kernels.Matern12):
-            self.omega = GPflow.param.Param(np.random.standard_cauchy((num_basis, input_dim)))
-        elif isinstance(kern, GPflow.kernels.Matern32):
-            self.omega = GPflow.param.Param(np.random.standard_t(2, (num_basis, input_dim)))
-        elif isinstance(kern, GPflow.kernels.Matern52):
-            self.omega = GPflow.param.Param(np.random.standard_t(3, (num_basis, input_dim)))
+        if isinstance(kern, gpflow.kernels.RBF):
+            self.omega = gpflow.param.Param(np.random.randn(num_basis, input_dim))
+        elif isinstance(kern, gpflow.kernels.Matern12):
+            self.omega = gpflow.param.Param(np.random.standard_cauchy((num_basis, input_dim)))
+        elif isinstance(kern, gpflow.kernels.Matern32):
+            self.omega = gpflow.param.Param(np.random.standard_t(2, (num_basis, input_dim)))
+        elif isinstance(kern, gpflow.kernels.Matern52):
+            self.omega = gpflow.param.Param(np.random.standard_t(3, (num_basis, input_dim)))
         else:
             raise NotImplementedError
         assert self.Y.shape[1] == 1
@@ -63,7 +63,7 @@ class SSGP(GPflow.model.GPModel):
 
         # R = chol((sf2/m)*(phi'*phi) + sn2*eye(2*m));                            % calculate some often-used constants
         A = (self.kern.variance / m_float) * tf.matmul(tf.transpose(phi), phi)\
-            + self.likelihood.variance * GPflow.tf_wraps.eye(2*m)
+            + self.likelihood.variance * gpflow.tf_wraps.eye(2*m)
         RT = tf.cholesky(A)
         R = tf.transpose(RT)
 
@@ -97,7 +97,7 @@ class SSGP(GPflow.model.GPModel):
 
         # R = chol((sf2/m)*(phi'*phi) + sn2*eye(2*m));                            % calculate some often-used constants
         A = (self.kern.variance / m_float) * tf.matmul(tf.transpose(phi), phi)\
-            + self.likelihood.variance * GPflow.tf_wraps.eye(2*m)
+            + self.likelihood.variance * gpflow.tf_wraps.eye(2*m)
         RT = tf.cholesky(A)
         R = tf.transpose(RT)
 
@@ -120,11 +120,11 @@ class SSGP(GPflow.model.GPModel):
         # out2(beg_chunk:end_chunk) = sn2*(1+sf2/m*sum((phistar/R).^2,2));% Predictive variance
         RtiPhistart = tf.matrix_triangular_solve(RT, tf.transpose(phistar))
         PhiRistar = tf.transpose(RtiPhistart)
-        # NB: do not add in noise variance to the predictive var: GPflow does that for us.
+        # NB: do not add in noise variance to the predictive var: gpflow does that for us.
         if full_cov:
             var = self.likelihood.variance * self.kern.variance / m_float *\
                 tf.matmul(PhiRistar, tf.transpose(PhiRistar)) + \
-                GPflow.tf_wraps.eye(tf.shape(Xnew)[0]) * 1e-6
+                gpflow.tf_wraps.eye(tf.shape(Xnew)[0]) * 1e-6
             var = tf.expand_dims(var, 2)
         else:
             var = self.likelihood.variance * self.kern.variance / m_float * tf.reduce_sum(tf.square(PhiRistar), 1)

@@ -58,7 +58,7 @@ def plot_all(dim):
         ax.set_title('dimension {}'.format(dim))
     plt.legend()
 
-for d in range(1,6):
+for d in range(1,5):
     plot_all(d)
 
 # plot_pred(pd.read_csv('results/sparse_opt.csv', index_col=0))

@@ -15,25 +15,25 @@
 
 from __future__ import print_function, absolute_import
 import numpy as np
-import GPflow
+import gpflow
 import tensorflow as tf
 from functools import reduce
 from .spectral_covariance import make_Kuu, make_Kuf, make_Kuf_np
 from .kronecker_ops import kron, make_kvs_np, make_kvs
 from .matrix_structures import BlockDiagMat_many
-from GPflow import settings
+from gpflow import settings
 float_type = settings.dtypes.float_type
 
 
-class GPR_1d(GPflow.model.GPModel):
+class GPR_1d(gpflow.model.GPModel):
     def __init__(self, X, Y, ms, a, b, kern):
         assert X.shape[1] == 1
-        assert isinstance(kern, (GPflow.kernels.Matern12,
-                                 GPflow.kernels.Matern32,
-                                 GPflow.kernels.Matern52))
-        likelihood = GPflow.likelihoods.Gaussian()
-        mean_function = GPflow.mean_functions.Zero()
-        GPflow.model.GPModel.__init__(self, X, Y, kern,
+        assert isinstance(kern, (gpflow.kernels.Matern12,
+                                 gpflow.kernels.Matern32,
+                                 gpflow.kernels.Matern52))
+        likelihood = gpflow.likelihoods.Gaussian()
+        mean_function = gpflow.mean_functions.Zero()
+        gpflow.model.GPModel.__init__(self, X, Y, kern,
                                       likelihood, mean_function)
         self.num_data = X.shape[0]
         self.num_latent = Y.shape[1]
@@ -74,7 +74,7 @@ class GPR_1d(GPflow.model.GPModel):
                 -0.5 * tf.reduce_sum(Kdiag)/sigma2,
                 0.5 * Kuu.trace_KiX(self.KufKfu) / sigma2)
 
-    @GPflow.param.AutoFlow()
+    @gpflow.param.AutoFlow()
     def compute_likelihood_terms(self):
         return self.build_likelihood_terms()
 
@@ -106,18 +106,18 @@ class GPR_1d(GPflow.model.GPModel):
         return mean, var
 
 
-class GPR_additive(GPflow.model.GPModel):
+class GPR_additive(gpflow.model.GPModel):
     def __init__(self, X, Y, ms, a, b, kern_list):
         assert X.shape[1] == len(kern_list)
         assert a.size == len(kern_list)
         assert b.size == len(kern_list)
         for kern in kern_list:
-            assert isinstance(kern, (GPflow.kernels.Matern12,
-                                     GPflow.kernels.Matern32,
-                                     GPflow.kernels.Matern52))
-        likelihood = GPflow.likelihoods.Gaussian()
-        mean_function = GPflow.mean_functions.Zero()
-        GPflow.model.GPModel.__init__(self, X, Y, None,
+            assert isinstance(kern, (gpflow.kernels.Matern12,
+                                     gpflow.kernels.Matern32,
+                                     gpflow.kernels.Matern52))
+        likelihood = gpflow.likelihoods.Gaussian()
+        mean_function = gpflow.mean_functions.Zero()
+        gpflow.model.GPModel.__init__(self, X, Y, None,
                                       likelihood, mean_function)
         self.num_data = X.shape[0]
         self.num_latent = Y.shape[1]
@@ -125,10 +125,10 @@ class GPR_additive(GPflow.model.GPModel):
         self.b = b
         self.ms = ms
 
-        self.kerns = GPflow.param.ParamList(kern_list)
+        self.kerns = gpflow.param.ParamList(kern_list)
 
         # pre compute static quantities: chunk data to save memory
-        self.tr_YTY = GPflow.param.DataHolder(np.sum(np.square(Y)))
+        self.tr_YTY = gpflow.param.DataHolder(np.sum(np.square(Y)))
         Mtotal = (2*self.ms.size - 1) * X.shape[1]
         self.KufY = np.zeros((Mtotal, 1))
         self.KufKfu = np.zeros((Mtotal, Mtotal))
@@ -145,8 +145,8 @@ class GPR_additive(GPflow.model.GPModel):
                 Kuf_chunk = np.vstack((Kuf_chunk, Kuf))
             self.KufKfu += np.dot(Kuf_chunk, Kuf_chunk.T)
             self.KufY += KufY_chunk
-        self.KufY = GPflow.param.DataHolder(self.KufY)
-        self.KufKfu = GPflow.param.DataHolder(self.KufKfu)
+        self.KufY = gpflow.param.DataHolder(self.KufY)
+        self.KufKfu = gpflow.param.DataHolder(self.KufKfu)
 
     def build_likelihood(self):
         num_data = tf.shape(self.Y)[0]
@@ -205,7 +205,7 @@ class GPR_additive(GPflow.model.GPModel):
             var = tf.tile(tf.expand_dims(var, 1), shape)
         return mean, var
 
-    @GPflow.param.AutoFlow((float_type, [None, 1]))
+    @gpflow.param.AutoFlow((float_type, [None, 1]))
     def predict_components(self, Xnew):
         """
         Here, Xnew should be a Nnew x 1 array of points at which to test each function
@@ -239,17 +239,17 @@ class GPR_additive(GPflow.model.GPModel):
         return tf.concat(mean, axis=1), tf.concat(var, axis=1)
 
 
-class GPRKron(GPflow.model.GPModel):
+class GPRKron(gpflow.model.GPModel):
     def __init__(self, X, Y, ms, a, b, kerns):
         for kern in kerns:
-            assert isinstance(kern, (GPflow.kernels.Matern12,
-                                     GPflow.kernels.Matern32,
-                                     GPflow.kernels.Matern52))
-        likelihood = GPflow.likelihoods.Gaussian()
-        mean_function = GPflow.mean_functions.Zero()
-        GPflow.model.GPModel.__init__(self, X, Y, None,
+            assert isinstance(kern, (gpflow.kernels.Matern12,
+                                     gpflow.kernels.Matern32,
+                                     gpflow.kernels.Matern52))
+        likelihood = gpflow.likelihoods.Gaussian()
+        mean_function = gpflow.mean_functions.Zero()
+        gpflow.model.GPModel.__init__(self, X, Y, None,
                                       likelihood, mean_function)
-        self.kerns = GPflow.param.ParamList(kerns)
+        self.kerns = gpflow.param.ParamList(kerns)
         self.num_data = X.shape[0]
         self.num_latent = Y.shape[1]
         self.a = a
@@ -305,7 +305,7 @@ class GPRKron(GPflow.model.GPModel):
                 -0.5 * tf.reduce_sum(Kdiag)/sigma2,
                 0.5 * tf.reduce_sum(Kuu_inv_solid * self.KufKfu) / sigma2)
 
-    @GPflow.param.AutoFlow()
+    @gpflow.param.AutoFlow()
     def compute_likelihood_terms(self):
         return self.build_likelihood_terms()
 

@@ -16,25 +16,25 @@
 from __future__ import print_function, absolute_import
 from functools import reduce
 import numpy as np
-import GPflow
+import gpflow
 import tensorflow as tf
 from .spectral_covariance import make_Kuu, make_Kuf, make_Kuf_np
 from .kronecker_ops import kvs_dot_vec, kron_vec_apply, kvs_dot_mat, kron_mat_apply, kron
-float_type = GPflow.settings.dtypes.float_type
+float_type = gpflow.settings.dtypes.float_type
 
 
-class VGP_1d(GPflow.model.GPModel):
+class VGP_1d(gpflow.model.GPModel):
     def __init__(self, X, Y, ms, a, b, kern, likelihood,
-                 mean_function=GPflow.mean_functions.Zero()):
+                 mean_function=gpflow.mean_functions.Zero()):
         """
         Here we assume the interval is [a,b]
         """
         assert X.shape[1] == 1
-        assert isinstance(kern, (GPflow.kernels.Matern12,
-                                 GPflow.kernels.Matern32,
-                                 GPflow.kernels.Matern52))
+        assert isinstance(kern, (gpflow.kernels.Matern12,
+                                 gpflow.kernels.Matern32,
+                                 gpflow.kernels.Matern52))
         kern = kern
-        GPflow.model.GPModel.__init__(self, X, Y, kern,
+        gpflow.model.GPModel.__init__(self, X, Y, kern,
                                       likelihood, mean_function)
         self.num_data = X.shape[0]
         self.num_latent = Y.shape[1]
@@ -46,9 +46,9 @@ class VGP_1d(GPflow.model.GPModel):
         Ncos = self.ms.size
         Nsin = self.ms.size - 1
 
-        self.q_mu = GPflow.param.Param(np.zeros((Ncos + Nsin, 1)))
-        pos = GPflow.transforms.positive
-        self.q_sqrt = GPflow.param.Param(np.ones(Ncos + Nsin), pos)
+        self.q_mu = gpflow.param.Param(np.zeros((Ncos + Nsin, 1)))
+        pos = gpflow.transforms.positive
+        self.q_sqrt = gpflow.param.Param(np.ones(Ncos + Nsin), pos)
 
     def build_predict(self, X, full_cov=False):
         # given self.q(v), compute q(f)
@@ -116,12 +116,12 @@ if __name__ == '__main__':
         plt.plot(xtest, np.exp(mu + 2*np.sqrt(var)), col+'--')
         plt.plot(xtest, np.exp(mu - 2*np.sqrt(var)), col+'--')
 
-    for k in [GPflow.kernels.Matern12, GPflow.kernels.Matern32]:
+    for k in [gpflow.kernels.Matern12, gpflow.kernels.Matern32]:
         m = VGP_1d(X, Y, np.arange(1000), a=-6, b=6,
                    kern=k(1),
-                   likelihood=GPflow.likelihoods.Exponential())
-        m0 = GPflow.vgp.VGP(X, Y, kern=k(1),
-                            likelihood=GPflow.likelihoods.Exponential())
+                   likelihood=gpflow.likelihoods.Exponential())
+        m0 = gpflow.vgp.VGP(X, Y, kern=k(1),
+                            likelihood=gpflow.likelihoods.Exponential())
 
         m.optimize()
         m0.optimize()
@@ -131,18 +131,18 @@ if __name__ == '__main__':
         print(m0)
 
 
-class VGP_additive(GPflow.model.GPModel):
+class VGP_additive(gpflow.model.GPModel):
     def __init__(self, X, Y, ms, a, b, kerns, likelihood):
         """
         Here we assume the interval is [a,b]
         """
         assert a.size == b.size == len(kerns) == X.shape[1]
         for kern in kerns:
-            assert isinstance(kern, (GPflow.kernels.Matern12,
-                                     GPflow.kernels.Matern32,
-                                     GPflow.kernels.Matern52))
-        mf = GPflow.mean_functions.Zero()
-        GPflow.model.GPModel.__init__(self, X, Y, kern=None,
+            assert isinstance(kern, (gpflow.kernels.Matern12,
+                                     gpflow.kernels.Matern32,
+                                     gpflow.kernels.Matern52))
+        mf = gpflow.mean_functions.Zero()
+        gpflow.model.GPModel.__init__(self, X, Y, kern=None,
                                       likelihood=likelihood, mean_function=mf)
         self.num_latent = 1  # multiple columns not supported in this version
         self.a = a
@@ -155,20 +155,20 @@ class VGP_additive(GPflow.model.GPModel):
         for kern in kerns:
             Ncos_d = self.ms.size
             Nsin_d = self.ms.size - 1
-            if isinstance(kern, GPflow.kernels.Matern12):
+            if isinstance(kern, gpflow.kernels.Matern12):
                 Ncos_d += 1
-            elif isinstance(kern, GPflow.kernels.Matern32):
+            elif isinstance(kern, gpflow.kernels.Matern32):
                 Ncos_d += 1
                 Nsin_d += 1
             else:
                 raise NotImplementedError
             Ms.append(Ncos_d + Nsin_d)
 
-        self.kerns = GPflow.param.ParamList(kerns)
+        self.kerns = gpflow.param.ParamList(kerns)
 
-        self.q_mu = GPflow.param.Param(np.zeros((np.sum(Ms), 1)))
-        pos = GPflow.transforms.positive
-        self.q_sqrt = GPflow.param.ParamList([GPflow.param.Param(np.ones(M), pos) for M in Ms])
+        self.q_mu = gpflow.param.Param(np.zeros((np.sum(Ms), 1)))
+        pos = gpflow.transforms.positive
+        self.q_sqrt = gpflow.param.ParamList([gpflow.param.Param(np.ones(M), pos) for M in Ms])
 
     def build_predict(self, X, full_cov=False):
         # given self.q(v), compute q(f)
@@ -221,25 +221,25 @@ class VGP_additive(GPflow.model.GPModel):
         return tf.reduce_sum(E_lik) - self.build_KL()
 
 
-class VGP_kron(GPflow.model.GPModel):
+class VGP_kron(gpflow.model.GPModel):
     def __init__(self, X, Y, ms, a, b, kerns, likelihood, use_two_krons=False, use_extra_ranks=0):
         """
         Here we assume the interval is [a,b]
         """
         assert a.size == b.size == len(kerns) == X.shape[1]
         for kern in kerns:
-            assert isinstance(kern, (GPflow.kernels.Matern12,
-                                     GPflow.kernels.Matern32,
-                                     GPflow.kernels.Matern52))
-        mf = GPflow.mean_functions.Zero()
-        GPflow.model.GPModel.__init__(self, X, Y, kern=None,
+            assert isinstance(kern, (gpflow.kernels.Matern12,
+                                     gpflow.kernels.Matern32,
+                                     gpflow.kernels.Matern52))
+        mf = gpflow.mean_functions.Zero()
+        gpflow.model.GPModel.__init__(self, X, Y, kern=None,
                                       likelihood=likelihood, mean_function=mf)
         self.num_latent = 1  # multiple columns not supported in this version
         self.a = a
         self.b = b
         self.ms = ms
 
-        self.kerns = GPflow.param.ParamList(kerns)
+        self.kerns = gpflow.param.ParamList(kerns)
 
         # initialize variational parameters
         self.Ms = []
@@ -248,18 +248,18 @@ class VGP_kron(GPflow.model.GPModel):
             Nsin_d = self.ms.size - 1
             self.Ms.append(Ncos_d + Nsin_d)
 
-        self.q_mu = GPflow.param.Param(np.zeros((np.prod(self.Ms), 1)))
+        self.q_mu = gpflow.param.Param(np.zeros((np.prod(self.Ms), 1)))
 
         # The covariance matrix
-        self.q_sqrt_kron = GPflow.param.ParamList([GPflow.param.Param(np.eye(M)) for M in self.Ms])
+        self.q_sqrt_kron = gpflow.param.ParamList([gpflow.param.Param(np.eye(M)) for M in self.Ms])
         self.use_two_krons = use_two_krons
         self.use_extra_ranks = use_extra_ranks
         assert not (use_extra_ranks and use_two_krons), "can only use one extra covariance structure at a time!"
         if use_two_krons:
             # same as above, but with different init to break symmetry
-            self.q_sqrt_kron_2 = GPflow.param.ParamList([GPflow.param.Param(np.eye(M)+0.01) for M in self.Ms])
+            self.q_sqrt_kron_2 = gpflow.param.ParamList([gpflow.param.Param(np.eye(M)+0.01) for M in self.Ms])
         elif use_extra_ranks:
-            self.q_sqrt_W = GPflow.param.Param(np.zeros((np.prod(self.Ms), use_extra_ranks)))
+            self.q_sqrt_W = gpflow.param.Param(np.zeros((np.prod(self.Ms), use_extra_ranks)))
 
         # pre-compute Kuf
         self._Kuf = [make_Kuf_np(X[:, i:i+1], ai, bi, self.ms)
@@ -267,12 +267,12 @@ class VGP_kron(GPflow.model.GPModel):
 
 
     def __getstate__(self):
-        d = GPflow.model.Model.__getstate__(self)
+        d = gpflow.model.Model.__getstate__(self)
         d.pop('_Kuf')
         return d
 
     def __setstate__(self, d):
-        GPflow.model.Model.__setstate__(self, d)
+        gpflow.model.Model.__setstate__(self, d)
         self._Kuf = [tf.constant(make_Kuf_np(self.X.value[:, i:i+1], ai, bi, self.ms))
                      for i, (ai, bi) in enumerate(zip(self.a, self.b))]
 
@@ -344,7 +344,7 @@ class VGP_kron(GPflow.model.GPModel):
 
         return mu, tf.reshape(var, [-1, 1])
 
-    @GPflow.model.AutoFlow()
+    @gpflow.model.AutoFlow()
     def compute_KL(self):
         return self.build_KL()
 
@@ -409,7 +409,7 @@ class VGP_kron(GPflow.model.GPModel):
         return tf.reduce_sum(E_lik) - self.build_KL()
 
 
-class VGP_kron_anyvar(GPflow.model.GPModel):
+class VGP_kron_anyvar(gpflow.model.GPModel):
     def __init__(self, X, Y, ms, a, b, kerns, likelihood):
         """
         Here we assume the interval is [a,b]
@@ -419,11 +419,11 @@ class VGP_kron_anyvar(GPflow.model.GPModel):
         """
         assert a.size == b.size == len(kerns) == X.shape[1]
         for kern in kerns:
-            assert isinstance(kern, (GPflow.kernels.Matern12,
-                                     GPflow.kernels.Matern32,
-                                     GPflow.kernels.Matern52))
-        mf = GPflow.mean_functions.Zero()
-        GPflow.model.GPModel.__init__(self, X, Y, kern=None,
+            assert isinstance(kern, (gpflow.kernels.Matern12,
+                                     gpflow.kernels.Matern32,
+                                     gpflow.kernels.Matern52))
+        mf = gpflow.mean_functions.Zero()
+        gpflow.model.GPModel.__init__(self, X, Y, kern=None,
                                       likelihood=likelihood, mean_function=mf)
         self.num_latent = 1  # multiple columns not supported in this version
         self.a = a
@@ -438,24 +438,24 @@ class VGP_kron_anyvar(GPflow.model.GPModel):
             Ms.append(Ncos_d + Nsin_d)
         self.Ms = Ms
 
-        self.kerns = GPflow.param.ParamList(kerns)
+        self.kerns = gpflow.param.ParamList(kerns)
 
-        self.q_mu = GPflow.param.Param(np.zeros((np.prod(Ms), 1)))
+        self.q_mu = gpflow.param.Param(np.zeros((np.prod(Ms), 1)))
 
         # The covariance matrix gets very big very quickly
-        self.q_sqrt = GPflow.param.Param(np.eye(np.prod(Ms)))
+        self.q_sqrt = gpflow.param.Param(np.eye(np.prod(Ms)))
 
         # pre-compute the Kuf matrices
         self._Kuf = [tf.constant(make_Kuf_np(X[:, i:i+1], ai, bi, self.ms))
                      for i, (ai, bi) in enumerate(zip(self.a, self.b))]
 
     def __getstate__(self):
-        d = GPflow.model.Model.__getstate__(self)
+        d = gpflow.model.Model.__getstate__(self)
         d.pop('_Kuf')
         return d
 
     def __setstate__(self, d):
-        GPflow.model.Model.__setstate__(self, d)
+        gpflow.model.Model.__setstate__(self, d)
         self._Kuf = [tf.constant(make_Kuf_np(self.X.value[:, i:i+1], ai, bi, self.ms))
                      for i, (ai, bi) in enumerate(zip(self.a, self.b))]
 
@@ -510,7 +510,7 @@ class VGP_kron_anyvar(GPflow.model.GPModel):
 
         return mu, var
 
-    @GPflow.model.AutoFlow()
+    @gpflow.model.AutoFlow()
     def compute_KL(self):
         return self.build_KL()
 

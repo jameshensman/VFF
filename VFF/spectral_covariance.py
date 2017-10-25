@@ -14,10 +14,10 @@
 
 
 import numpy as np
-import GPflow
+import gpflow
 import tensorflow as tf
 from .matrix_structures import DiagMat, Rank1Mat, LowRankMat, BlockDiagMat
-from GPflow import settings
+from gpflow import settings
 float_type = settings.dtypes.float_type
 
 
@@ -28,7 +28,7 @@ def make_Kuu(kern, a, b, ms):
     omegas = 2. * np.pi * ms / (b-a)
     if float_type is tf.float32:
         omegas = omegas.astype(np.float32)
-    if isinstance(kern, GPflow.kernels.Matern12):
+    if isinstance(kern, gpflow.kernels.Matern12):
         # cos part first
         lamb = 1./kern.lengthscales
         two_or_four = np.where(omegas == 0, 2., 4.)
@@ -44,7 +44,7 @@ def make_Kuu(kern, a, b, ms):
 
         return BlockDiagMat(Rank1Mat(d_cos, v_cos), DiagMat(d_sin))
 
-    elif isinstance(kern, GPflow.kernels.Matern32):
+    elif isinstance(kern, gpflow.kernels.Matern32):
         # cos part first
         lamb = np.sqrt(3.)/kern.lengthscales
         four_or_eight = np.where(omegas == 0, 4., 8.)
@@ -60,7 +60,7 @@ def make_Kuu(kern, a, b, ms):
         v_sin = omegas / lamb / tf.sqrt(kern.variance)
         return BlockDiagMat(Rank1Mat(d_cos, v_cos), Rank1Mat(d_sin, v_sin))
 
-    elif isinstance(kern, GPflow.kernels.Matern52):
+    elif isinstance(kern, gpflow.kernels.Matern52):
         # cos part:
         lamb = np.sqrt(5.0) / kern.lengthscales
         sixteen_or_32 = np.where(omegas == 0, 16., 32.)
@@ -102,12 +102,12 @@ def make_Kuf(k, X, a, b, ms):
     gt_b_sin = tf.tile(tf.transpose(X) > b, [len(ms)-1, 1])
     lt_a_cos = tf.tile(tf.transpose(X) < a, [len(ms), 1])
     gt_b_cos = tf.tile(tf.transpose(X) > b, [len(ms), 1])
-    if isinstance(k, GPflow.kernels.Matern12):
+    if isinstance(k, gpflow.kernels.Matern12):
         # Kuf_sin[:, np.logical_or(X.flatten() < a, X.flatten() > b)] = 0
         Kuf_sin = tf.where(tf.logical_or(lt_a_sin, gt_b_sin), tf.zeros(tf.shape(Kuf_sin), float_type), Kuf_sin)
         Kuf_cos = tf.where(lt_a_cos, tf.tile(tf.exp(-tf.abs(tf.transpose(X-a))/k.lengthscales), [len(ms), 1]), Kuf_cos)
         Kuf_cos = tf.where(gt_b_cos, tf.tile(tf.exp(-tf.abs(tf.transpose(X-b))/k.lengthscales), [len(ms), 1]), Kuf_cos)
-    elif isinstance(k, GPflow.kernels.Matern32):
+    elif isinstance(k, gpflow.kernels.Matern32):
         arg = np.sqrt(3) * tf.abs(tf.transpose(X) - a) / k.lengthscales
         edge = tf.tile((1 + arg) * tf.exp(-arg), [len(ms), 1])
         Kuf_cos = tf.where(lt_a_cos, edge, Kuf_cos)
@@ -121,7 +121,7 @@ def make_Kuf(k, X, a, b, ms):
         arg = np.sqrt(3) * tf.abs(tf.transpose(X) - b) / k.lengthscales
         edge = (tf.transpose(X) - b) * tf.exp(-arg) * omegas_sin[:, None]
         Kuf_sin = tf.where(gt_b_sin, edge, Kuf_sin)
-    elif isinstance(k, GPflow.kernels.Matern52):
+    elif isinstance(k, gpflow.kernels.Matern52):
         # edges not implemented yet
         Kuf_cos = tf.with_dependencies([tf.assert_greater_equal(X, a)], Kuf_cos, message='Edges not implemented for Matern52', name='assert_left_edge')
         Kuf_sin = tf.with_dependencies([tf.assert_less_equal   (X, b)], Kuf_sin, message='Edges not implemented for Matern52', name='assert_right_edge')
@@ -145,14 +145,14 @@ def make_Kuf_np_with_edges(k, X, a, b, ms):
     Kuf_sin = np.sin(omegas_sin * (X - a)).T
 
     # correct Kfu outside [a, b]
-    if isinstance(k, GPflow.kernels.Matern12):
+    if isinstance(k, gpflow.kernels.Matern12):
         Kuf_sin[:, np.logical_or(X.flatten() < a, X.flatten() > b)] = 0
         X_a = X[X.flatten() < a].T
         X_b = X[X.flatten() > b].T
         Kuf_cos[:, X.flatten() < a] = np.exp(- np.abs(X_a - a) / k.lengthscales.value)
         Kuf_cos[:, X.flatten() > b] = np.exp(- np.abs(X_b - b) / k.lengthscales.value)
 
-    elif isinstance(k, GPflow.kernels.Matern32):
+    elif isinstance(k, gpflow.kernels.Matern32):
         X_a = X[X.flatten() < a].T
         X_b = X[X.flatten() > b].T
 
@@ -166,7 +166,7 @@ def make_Kuf_np_with_edges(k, X, a, b, ms):
         arg = np.sqrt(3) * np.abs(X_b - b) / k.lengthscales.value
         Kuf_sin[:, X.flatten() > b] = (X_b - b) * np.exp(-arg) * omegas_sin[:, None]
 
-    elif isinstance(k, GPflow.kernels.Matern52):
+    elif isinstance(k, gpflow.kernels.Matern52):
         assert not (np.any(X < a) or np.any(X > b))
         raise NotImplementedError
     else:
