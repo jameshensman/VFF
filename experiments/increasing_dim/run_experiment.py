@@ -115,7 +115,7 @@ for dim in dimensions:
 # kron_opt
 results = pd.DataFrame()
 
-for dim in dimensions[2:]:
+for dim in dimensions:
     a, b = -1.5 * np.ones(dim), 1.5 * np.ones(dim)
     k = prodkern(dim)
     for r in range(repeats):
