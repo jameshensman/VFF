@@ -19,7 +19,7 @@ def plot_all(dim):
         for j, num_basis in enumerate(num_Basis[dim-1]):
             ind_basis = df.num_inducing == num_basis ** dim
             ax.plot(df.time[ind_basis],-df.marg_lik_x[ind_basis] + df.marg_lik_y[ind_basis], bullet[j], color=col[i])  # KL
-            #ax.plot(df.time[ind_basis],-df.mean_log_pred_x[ind_basis] + df.mean_log_pred_y[ind_basis], bullet[j], color=col[i]) # log pred
+            # ax.plot(df.time[ind_basis],-df.mean_log_pred_x[ind_basis] + df.mean_log_pred_y[ind_basis], bullet[j], color=col[i]) # log pred
         # ax.set_ylim((-0.02,1.6))
         ax.semilogx()
         ax.set_title('dimension {}'.format(dim))

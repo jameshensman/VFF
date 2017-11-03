@@ -16,9 +16,9 @@ file = open("results/vff.csv","w")
 file.write("dim,rep,num_inducing,marg_lik,mean_log_pred,time\n") 
 file.close() 
 
-# file = open("results/sparse.csv","w") 
-# file.write("dim,rep,num_inducing,marg_lik,mean_log_pred,time\n") 
-# file.close() 
+file = open("results/sparse.csv","w") 
+file.write("dim,rep,num_inducing,marg_lik,mean_log_pred,time\n") 
+file.close() 
 
 
 ## Generate Data
@@ -36,9 +36,9 @@ for i, dim in enumerate(dimensions):
                 subprocess.call(["python", "vff.py", str(dim), str(rep), str(num_basis)])
 
 ## fit sparse
-# for i, dim in enumerate(dimensions):
-#     for rep in range(repeats):
-#             for num_basis in num_Basis[i]:
-#                 subprocess.call(["python", "sparse.py", str(dim), str(rep), str(num_basis)])
+for i, dim in enumerate(dimensions):
+    for rep in range(repeats):
+            for num_basis in num_Basis[i]:
+                subprocess.call(["python", "sparse.py", str(dim), str(rep), str(num_basis)])
 
 
