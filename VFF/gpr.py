@@ -49,7 +49,8 @@ class GPR_1d(gpflow.models.GPModel):
         self.KufKfu = np.dot(Kuf, Kuf.T)
         self.tr_YTY = np.sum(np.square(Y))
 
-    def build_likelihood(self):
+    @gpflow.params_as_tensors
+    def _build_likelihood(self):
         return reduce(tf.add, self.build_likelihood_terms())
 
     def build_likelihood_terms(self):
@@ -78,7 +79,8 @@ class GPR_1d(gpflow.models.GPModel):
     def compute_likelihood_terms(self):
         return self.build_likelihood_terms()
 
-    def build_predict(self, Xnew, full_cov=False):
+    @gpflow.params_as_tensors
+    def _build_predict(self, Xnew, full_cov=False):
         Kuu = make_Kuu(self.kern, self.a, self.b, self.ms)
         sigma2 = self.likelihood.variance
 
@@ -125,10 +127,10 @@ class GPR_additive(gpflow.models.GPModel):
         self.b = b
         self.ms = ms
 
-        self.kerns = gpflow.param.ParamList(kern_list)
+        self.kerns = gpflow.ParamList(kern_list)
 
         # pre compute static quantities: chunk data to save memory
-        self.tr_YTY = gpflow.param.DataHolder(np.sum(np.square(Y)))
+        self.tr_YTY = gpflow.DataHolder(np.sum(np.square(Y)))
         Mtotal = (2*self.ms.size - 1) * X.shape[1]
         self.KufY = np.zeros((Mtotal, 1))
         self.KufKfu = np.zeros((Mtotal, Mtotal))
@@ -145,10 +147,11 @@ class GPR_additive(gpflow.models.GPModel):
                 Kuf_chunk = np.vstack((Kuf_chunk, Kuf))
             self.KufKfu += np.dot(Kuf_chunk, Kuf_chunk.T)
             self.KufY += KufY_chunk
-        self.KufY = gpflow.param.DataHolder(self.KufY)
-        self.KufKfu = gpflow.param.DataHolder(self.KufKfu)
+        self.KufY = gpflow.DataHolder(self.KufY)
+        self.KufKfu = gpflow.DataHolder(self.KufKfu)
 
-    def build_likelihood(self):
+    @gpflow.params_as_tensors
+    def _build_likelihood(self):
         num_data = tf.shape(self.Y)[0]
         output_dim = tf.shape(self.Y)[1]
 
@@ -176,7 +179,8 @@ class GPR_additive(gpflow.models.GPModel):
 
         return bound
 
-    def build_predict(self, Xnew, full_cov=False):
+    @gpflow.params_as_tensors
+    def _build_predict(self, Xnew, full_cov=False):
         Kuu = [make_Kuu(k, ai, bi, self.ms) for k, ai, bi in zip(self.kerns, self.a, self.b)]
         Kuu = BlockDiagMat_many([mat for k in Kuu for mat in [k.A, k.B]])
         sigma2 = self.likelihood.variance
@@ -206,6 +210,7 @@ class GPR_additive(gpflow.models.GPModel):
         return mean, var
 
     @gpflow.autoflow((float_type, [None, 1]))
+    @gpflow.params_as_tensors
     def predict_components(self, Xnew):
         """
         Here, Xnew should be a Nnew x 1 array of points at which to test each function
@@ -249,7 +254,7 @@ class GPRKron(gpflow.models.GPModel):
         mean_function = gpflow.mean_functions.Zero()
         gpflow.models.GPModel.__init__(self, X, Y, None,
                                       likelihood, mean_function)
-        self.kerns = gpflow.param.ParamList(kerns)
+        self.kerns = gpflow.ParamList(kerns)
         self.num_data = X.shape[0]
         self.num_latent = Y.shape[1]
         self.a = a
@@ -274,10 +279,12 @@ class GPRKron(gpflow.models.GPModel):
         self.KufKfu = np.dot(self.Kuf, self.Kuf.T)
         self.tr_YTY = np.sum(np.square(Y))
 
-    def build_likelihood(self):
+    @gpflow.params_as_tensors
+    def _build_likelihood(self):
         return reduce(tf.add, self.build_likelihood_terms())
 
-    def build_likelihood_terms(self):
+    @gpflow.params_as_tensors
+    def _build_likelihood_terms(self):
         Kdiag = reduce(tf.multiply, [k.Kdiag(self.X[:, i:i+1]) for i, k in enumerate(self.kerns)])
         Kuu = [make_Kuu(k, a, b, self.ms) for k, a, b, in zip(self.kerns, self.a, self.b)]
         Kuu_solid = kron([Kuu_d.get() for Kuu_d in Kuu])
@@ -309,7 +316,8 @@ class GPRKron(gpflow.models.GPModel):
     def compute_likelihood_terms(self):
         return self.build_likelihood_terms()
 
-    def build_predict(self, Xnew, full_cov=False):
+    @gpflow.params_as_tensors
+    def _build_predict(self, Xnew, full_cov=False):
         Kuu = [make_Kuu(k, a, b, self.ms) for k, a, b, in zip(self.kerns, self.a, self.b)]
         Kuu_solid = kron([Kuu_d.get() for Kuu_d in Kuu])
         Kuu_inv_solid = kron([Kuu_d.inv().get() for Kuu_d in Kuu])

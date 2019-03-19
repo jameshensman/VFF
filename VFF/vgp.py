@@ -46,11 +46,12 @@ class VGP_1d(gpflow.models.GPModel):
         Ncos = self.ms.size
         Nsin = self.ms.size - 1
 
-        self.q_mu = gpflow.param.Param(np.zeros((Ncos + Nsin, 1)))
+        self.q_mu = gpflow.Param(np.zeros((Ncos + Nsin, 1)))
         pos = gpflow.transforms.positive
-        self.q_sqrt = gpflow.param.Param(np.ones(Ncos + Nsin), pos)
+        self.q_sqrt = gpflow.Param(np.ones(Ncos + Nsin), pos)
 
-    def build_predict(self, X, full_cov=False):
+    @gpflow.params_as_tensors
+    def _build_predict(self, X, full_cov=False):
         # given self.q(v), compute q(f)
 
         Kuf = make_Kuf(self.kern, X, self.a, self.b, self.ms)
@@ -74,7 +75,7 @@ class VGP_1d(gpflow.models.GPModel):
 
         return mu, var
 
-    def build_KL(self):
+    def _build_KL(self):
         """
         We're working in a 'whitened' representation, so this is the KL between
         q(u) and N(0, 1)
@@ -88,7 +89,8 @@ class VGP_1d(gpflow.models.GPModel):
         KL += 0.5*Kuu.logdet()  # Log det P
         return KL
 
-    def build_likelihood(self):
+    @gpflow.params_as_tensors
+    def _build_likelihood(self):
         # compute the mean and variance of the latent function
         f_mu, f_var = self.build_predict(self.X, full_cov=False)
 
@@ -164,13 +166,14 @@ class VGP_additive(gpflow.models.GPModel):
                 raise NotImplementedError
             Ms.append(Ncos_d + Nsin_d)
 
-        self.kerns = gpflow.param.ParamList(kerns)
+        self.kerns = gpflow.ParamList(kerns)
 
-        self.q_mu = gpflow.param.Param(np.zeros((np.sum(Ms), 1)))
+        self.q_mu = gpflow.Param(np.zeros((np.sum(Ms), 1)))
         pos = gpflow.transforms.positive
-        self.q_sqrt = gpflow.param.ParamList([gpflow.param.Param(np.ones(M), pos) for M in Ms])
+        self.q_sqrt = gpflow.ParamList([gpflow.Param(np.ones(M), pos) for M in Ms])
 
-    def build_predict(self, X, full_cov=False):
+    @gpflow.params_as_tensors
+    def _build_predict(self, X, full_cov=False):
         # given self.q(v), compute q(f)
 
         Kuf = [make_Kuf(X[:, i:i+1], a, b, self.ms) for i, (a, b) in enumerate(zip(self.a, self.b))]
@@ -213,7 +216,8 @@ class VGP_additive(gpflow.models.GPModel):
 
         return KL
 
-    def build_likelihood(self):
+    @gpflow.params_as_tensors
+    def _build_likelihood(self):
         # compute the mean and variance of the latent function
         f_mu, f_var = self.build_predict(self.X, full_cov=False)
 
@@ -239,7 +243,7 @@ class VGP_kron(gpflow.models.GPModel):
         self.b = b
         self.ms = ms
 
-        self.kerns = gpflow.param.ParamList(kerns)
+        self.kerns = gpflow.ParamList(kerns)
 
         # initialize variational parameters
         self.Ms = []
@@ -248,18 +252,18 @@ class VGP_kron(gpflow.models.GPModel):
             Nsin_d = self.ms.size - 1
             self.Ms.append(Ncos_d + Nsin_d)
 
-        self.q_mu = gpflow.param.Param(np.zeros((np.prod(self.Ms), 1)))
+        self.q_mu = gpflow.Param(np.zeros((np.prod(self.Ms), 1)))
 
         # The covariance matrix
-        self.q_sqrt_kron = gpflow.param.ParamList([gpflow.param.Param(np.eye(M)) for M in self.Ms])
+        self.q_sqrt_kron = gpflow.ParamList([gpflow.Param(np.eye(M)) for M in self.Ms])
         self.use_two_krons = use_two_krons
         self.use_extra_ranks = use_extra_ranks
         assert not (use_extra_ranks and use_two_krons), "can only use one extra covariance structure at a time!"
         if use_two_krons:
             # same as above, but with different init to break symmetry
-            self.q_sqrt_kron_2 = gpflow.param.ParamList([gpflow.param.Param(np.eye(M)+0.01) for M in self.Ms])
+            self.q_sqrt_kron_2 = gpflow.ParamList([gpflow.Param(np.eye(M)+0.01) for M in self.Ms])
         elif use_extra_ranks:
-            self.q_sqrt_W = gpflow.param.Param(np.zeros((np.prod(self.Ms), use_extra_ranks)))
+            self.q_sqrt_W = gpflow.Param(np.zeros((np.prod(self.Ms), use_extra_ranks)))
 
         # pre-compute Kuf
         self._Kuf = [make_Kuf_np(X[:, i:i+1], ai, bi, self.ms)
@@ -276,7 +280,8 @@ class VGP_kron(gpflow.models.GPModel):
         self._Kuf = [tf.constant(make_Kuf_np(self.X.value[:, i:i+1], ai, bi, self.ms))
                      for i, (ai, bi) in enumerate(zip(self.a, self.b))]
 
-    def build_predict(self, X, full_cov=False):
+    @gpflow.params_as_tensors
+    def _build_predict(self, X, full_cov=False):
         # given self.q(v), compute q(f)
 
         Kuf = [make_Kuf(k, X[:, i:i+1], a, b, self.ms) for i, (k, a, b) in enumerate(zip(self.kerns, self.a, self.b))]
@@ -401,7 +406,8 @@ class VGP_kron(gpflow.models.GPModel):
 
         return KL
 
-    def build_likelihood(self):
+    @gpflow.params_as_tensors
+    def _build_likelihood(self):
         # compute the mean and variance of the latent function
         f_mu, f_var = self._build_predict_train()
 
@@ -438,12 +444,12 @@ class VGP_kron_anyvar(gpflow.models.GPModel):
             Ms.append(Ncos_d + Nsin_d)
         self.Ms = Ms
 
-        self.kerns = gpflow.param.ParamList(kerns)
+        self.kerns = gpflow.ParamList(kerns)
 
-        self.q_mu = gpflow.param.Param(np.zeros((np.prod(Ms), 1)))
+        self.q_mu = gpflow.Param(np.zeros((np.prod(Ms), 1)))
 
         # The covariance matrix gets very big very quickly
-        self.q_sqrt = gpflow.param.Param(np.eye(np.prod(Ms)))
+        self.q_sqrt = gpflow.Param(np.eye(np.prod(Ms)))
 
         # pre-compute the Kuf matrices
         self._Kuf = [tf.constant(make_Kuf_np(X[:, i:i+1], ai, bi, self.ms))
@@ -459,7 +465,8 @@ class VGP_kron_anyvar(gpflow.models.GPModel):
         self._Kuf = [tf.constant(make_Kuf_np(self.X.value[:, i:i+1], ai, bi, self.ms))
                      for i, (ai, bi) in enumerate(zip(self.a, self.b))]
 
-    def build_predict(self, X, full_cov=False):
+    @gpflow.params_as_tensors
+    def _build_predict(self, X, full_cov=False):
         # given self.q(v), compute q(f)
 
         Kuf = [make_Kuf(k, X[:, i:i+1], a, b, self.ms) for i, (k, a, b) in enumerate(zip(self.kerns, self.a, self.b))]
@@ -533,7 +540,8 @@ class VGP_kron_anyvar(gpflow.models.GPModel):
         KL += 0.5 * reduce(tf.add, [N*logdet for N, logdet in zip(N_others, Kuu_logdets)])  # kron-logdet P
         return KL
 
-    def build_likelihood(self):
+    @gpflow.params_as_tensors
+    def _build_likelihood(self):
         # compute the mean and variance of the latent function
         f_mu, f_var = self._build_predict_train()
 

@@ -16,8 +16,8 @@
 from __future__ import print_function
 import numpy as np
 from matplotlib import pyplot as plt
-import GPflow
-import VFF
+import gpflow
+import vff
 import pandas as pd
 
 # Import the data
@@ -49,22 +49,23 @@ X = (X - Xmin) / (Xmax - Xmin)
 
 
 def plot(m):
-    fig, axes = plt.subplots(2, 4, figsize=(10, 5))
+    fig, axes = plt.subplots(2, 4, figsize=(16, 5))
     Xtest = np.linspace(0, 1, 200)[:, None]
     mu, var = m.predict_components(Xtest)
     for i in range(mu.shape[1]):
         ax = axes.flatten()[i]
         Xplot = Xtest * (Xmax[i] - Xmin[i]) + Xmin[i]
-        ax.plot(Xplot, mu[:, i], lw=2)
-        ax.plot(Xplot, mu[:, i] + 2*np.sqrt(var[:, i]), 'b--', lw=1)
-        ax.plot(Xplot, mu[:, i] - 2*np.sqrt(var[:, i]), 'b--', lw=1)
+        ax.plot(Xplot, mu[:, i], lw=2, color='C0')
+        ax.plot(Xplot, mu[:, i] + 2*np.sqrt(var[:, i]), 'C0--', lw=1)
+        ax.plot(Xplot, mu[:, i] - 2*np.sqrt(var[:, i]), 'C0--', lw=1)
         ax.set_title(names[i])
 
 
 if __name__ == '__main__':
-    m = VFF.gpr.GPR_additive(X, Y, np.arange(30), np.zeros(X.shape[1]) - 2, np.ones(X.shape[1]) + 2,
-                             [GPflow.kernels.Matern32(1) for i in range(X.shape[1])])
-    m.optimize(disp=1)
+    m = vff.gpr.GPR_additive(X, Y, np.arange(30), np.zeros(X.shape[1]) - 2, np.ones(X.shape[1]) + 2,
+                             [gpflow.kernels.Matern32(1) for i in range(X.shape[1])])
+    opt = gpflow.train.ScipyOptimizer()
+    opt.minimize(m)
 
     plot(m)
 
