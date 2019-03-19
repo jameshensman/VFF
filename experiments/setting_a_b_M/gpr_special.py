@@ -15,17 +15,16 @@
 
 from __future__ import print_function, absolute_import
 import numpy as np
-import GPflow
+import gpflow
 import tensorflow as tf
-from GPflow.tf_wraps import eye
-from sfgp.spectral_covariance import make_Kuu, make_Kuf
-from GPflow import settings
+from vff.spectral_covariance import make_Kuu, make_Kuf
+from gpflow import settings
 float_type = settings.dtypes.float_type
 
 
-class GPR_1d(GPflow.model.GPModel):
+class GPR_1d(gpflow.models.GPModel):
     def __init__(self, X, Y, ms, a, b, kern,
-                 mean_function=GPflow.mean_functions.Zero()):
+                 mean_function=gpflow.mean_functions.Zero()):
         """
         In this special edition of VFF-GPR, we allow the boundary to be inside the data.
 
@@ -37,12 +36,12 @@ class GPR_1d(GPflow.model.GPModel):
         for a practical version, use the VFF package.
         """
         assert X.shape[1] == 1
-        assert isinstance(kern, (GPflow.kernels.Matern12,
-                                 GPflow.kernels.Matern32,
-                                 GPflow.kernels.Matern52))
+        assert isinstance(kern, (gpflow.kernels.Matern12,
+                                 gpflow.kernels.Matern32,
+                                 gpflow.kernels.Matern52))
         kern = kern
-        likelihood = GPflow.likelihoods.Gaussian()
-        GPflow.model.GPModel.__init__(self, X, Y, kern,
+        likelihood = gpflow.likelihoods.Gaussian()
+        gpflow.models.GPModel.__init__(self, X, Y, kern,
                                       likelihood, mean_function)
         self.num_data = X.shape[0]
         self.num_latent = Y.shape[1]
@@ -50,7 +49,8 @@ class GPR_1d(GPflow.model.GPModel):
         self.b = b
         self.ms = ms
 
-    def build_likelihood(self):
+    @gpflow.params_as_tensors
+    def _build_likelihood(self):
         num_inducing = tf.size(self.ms)
         num_data = tf.shape(self.Y)[0]
         output_dim = tf.shape(self.Y)[1]
@@ -67,7 +67,7 @@ class GPR_1d(GPflow.model.GPModel):
         A = tf.matrix_triangular_solve(L, Kuf) / sigma
         AAT = tf.matmul(A, tf.transpose(A))
 
-        B = AAT + eye(num_inducing * 2 - 1)
+        B = AAT + tf.eye(num_inducing * 2 - 1, dtype=float_type)
         LB = tf.cholesky(B)
         log_det_B = 2. * tf.reduce_sum(tf.log(tf.diag_part(LB)))
         c = tf.matrix_triangular_solve(LB, tf.matmul(A, err)) / sigma
@@ -84,7 +84,8 @@ class GPR_1d(GPflow.model.GPModel):
 
         return bound
 
-    def build_predict(self, Xnew, full_cov=False):
+    @gpflow.params_as_tensors
+    def _build_predict(self, Xnew, full_cov=False):
         num_inducing = tf.size(self.ms)
 
         err = self.Y - self.mean_function(self.X)
@@ -98,7 +99,7 @@ class GPR_1d(GPflow.model.GPModel):
         A = tf.matrix_triangular_solve(L, Kuf) / sigma
         AAT = tf.matmul(A, tf.transpose(A))
 
-        B = AAT + eye(num_inducing * 2 - 1)
+        B = AAT + tf.eye(num_inducing * 2 - 1, dtype=float_type)
         LB = tf.cholesky(B)
         c = tf.matrix_triangular_solve(LB, tf.matmul(A, err)) / sigma
 
@@ -110,12 +111,10 @@ class GPR_1d(GPflow.model.GPModel):
             var = self.kern.K(Xnew) + \
                 tf.matmul(tf.transpose(tmp2), tmp2) - \
                 tf.matmul(tf.transpose(tmp1), tmp1)
-            shape = tf.pack([1, 1, tf.shape(self.Y)[1]])
-            var = tf.tile(tf.expand_dims(var, 2), shape)
+            var = var[:, :, None] * tf.ones(self.Y.shape[1], dtype=float_type)
         else:
             var = self.kern.Kdiag(Xnew) + \
                 tf.reduce_sum(tf.square(tmp2), 0) - \
                 tf.reduce_sum(tf.square(tmp1), 0)
-            shape = tf.pack([1, tf.shape(self.Y)[1]])
-            var = tf.tile(tf.expand_dims(var, 1), shape)
+            var = var[:, None]#  * tf.ones(self.Y.shape[1], dtype=float_type)
         return mean + self.mean_function(Xnew), var

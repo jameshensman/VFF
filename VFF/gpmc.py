@@ -22,7 +22,7 @@ from .spectral_covariance import make_Kuu, make_Kuf
 from .kronecker_ops import kvs_dot_vec
 
 
-class GPMC_1d(gpflow.model.GPModel):
+class GPMC_1d(gpflow.models.GPModel):
     def __init__(self, X, Y, ms, a, b, kern, likelihood,
                  mean_function=gpflow.mean_functions.Zero()):
         """
@@ -33,7 +33,7 @@ class GPMC_1d(gpflow.model.GPModel):
                                  gpflow.kernels.Matern32,
                                  gpflow.kernels.Matern52))
         kern = kern
-        gpflow.model.GPModel.__init__(self, X, Y, kern,
+        gpflow.models.GPModel.__init__(self, X, Y, kern,
                                       likelihood, mean_function)
         self.num_data = X.shape[0]
         self.num_latent = Y.shape[1]
@@ -55,7 +55,7 @@ class GPMC_1d(gpflow.model.GPModel):
         self.V = gpflow.param.Param(np.zeros((Ncos + Nsin, 1)))
         self.V.prior = gpflow.priors.Gaussian(0., 1.)
 
-    @gpflow.model.AutoFlow()
+    @gpflow.autoflow()
     def mats(self):
         Kuf = make_Kuf(self.X, self.a, self.b, self.ms)
         Kuu = make_Kuu(self.kern, self.a, self.b, self.ms)
@@ -115,7 +115,7 @@ def kron_vec_sqrt_transpose(K, vec):
     return reduce(f, K, vec)
 
 
-class GPMC_kron(gpflow.model.GPModel):
+class GPMC_kron(gpflow.models.GPModel):
     def __init__(self, X, Y, ms, a, b, kerns, likelihood, mean_function=None):
         """
         X is a np array of stimuli
@@ -135,7 +135,7 @@ class GPMC_kron(gpflow.model.GPModel):
                                      gpflow.kernels.Matern52))
         if mean_function is None:
             mean_function = gpflow.mean_functions.Zero()
-        gpflow.model.GPModel.__init__(self, X, Y, kern=None,
+        gpflow.models.GPModel.__init__(self, X, Y, kern=None,
                                       likelihood=likelihood, mean_function=mean_function)
         self.num_data = X.shape[0]
         self.num_latent = 1  # multiple columns not supported in this version

@@ -15,7 +15,7 @@
 
 import numpy as np
 from matplotlib import pyplot as plt
-import GPflow
+import gpflow
 from gpr_special import GPR_1d
 # from matplotlib2tikz import save as savefig
 plt.ion()
@@ -24,7 +24,7 @@ plt.close('all')
 np.random.seed(0)
 N = 20
 X = np.random.rand(N, 1)
-K = GPflow.kernels.Matern32(1, lengthscales=0.2).compute_K_symm(X)
+K = gpflow.kernels.Matern32(1, lengthscales=0.2).compute_K_symm(X)
 Y = np.random.multivariate_normal(np.zeros(N), K + np.eye(N)*0.05).reshape(-1, 1)
 
 
@@ -53,7 +53,7 @@ Ms = np.array([8, 16, 32])
 f, axes = plt.subplots(a_s.size, Ms.size, sharex=True, sharey=True)
 for i, (a, b) in enumerate(zip(a_s, b_s)):
     for j, M in enumerate(Ms):
-        m = GPR_1d(X, Y, np.arange(M), a=a, b=b, kern=GPflow.kernels.Matern32(1, lengthscales=0.2))
+        m = GPR_1d(X, Y, np.arange(M), a=a, b=b, kern=gpflow.kernels.Matern32(1, lengthscales=0.2))
         m.likelihood.variance = 0.05
         # m.optimize()
         plot(m, axes[i, j])

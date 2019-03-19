@@ -18,7 +18,7 @@ import numpy as np
 import tensorflow as tf
 
 
-class SSGP(gpflow.model.GPModel):
+class SSGP(gpflow.models.GPModel):
     """
     The Sparse Spectrum GP, judiciously copied from Miguel Lazaro Gredilla's
     MATLAB code, available at http://www.tsc.uc3m.es/~miguel/downloads.php. His
