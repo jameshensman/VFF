@@ -3,7 +3,7 @@ Variational Fourier Features for Gaussian Processes
 
 By James Hensman, Nicolas Durrande and Arno Solin.
 
-Code accompanies this arxiv paper: https://arxiv.org/pdf/1611.06740v1.pdf
+Code accompanies this JMLR paper: http://www.jmlr.org/papers/v18/16-579.html
 
 ### Install
 VFF relies heavily on [GPflow](github.com/GPflow/GPflow). After installing GPflow, clone this repo and add the VFF directory to your PYTHONPATH. There are some examples in the `experiments` directory that replicate figures from the manuscript. 
