@@ -16,7 +16,7 @@
 import numpy as np
 from matplotlib import pyplot as plt
 from scipy.cluster.vq import kmeans
-import VFF as vff
+import vff
 import gpflow
 np.random.seed(0)
 
@@ -30,8 +30,7 @@ a = X.min(0) - 2.5
 b = X.max(0) + 2.5
 
 
-def plot(model, ax):
-    m = model["model"]
+def plot(m, ax):
     if ax is None:
         fig, ax = plt.subplots(1, 1, figsize=(6, 6))
     xtest, ytest = np.mgrid[-2.5:2.5:100j, -2.5:2.5:100j]
@@ -40,8 +39,6 @@ def plot(model, ax):
         ind = m.Y.value[:, 0] == i
         ax.plot(m.X.value[ind, 0], m.X.value[ind, 1], mark)
     mu, var = m.predict_y(Xtest)
-    model["predict_y_mean"] = mu
-    model["predict_y_var"] = var
     ax.contour(xtest, ytest, mu.reshape(100, 100), levels=[0.5],
                colors='C0', linewidths=4)
 
@@ -53,23 +50,21 @@ def plot(model, ax):
 models = []
 for M in [2, 4, 8, 16]:
     m = vff.vgp.VGP_kron(X, Y, np.arange(M), a=a, b=b, kerns=[k(1), k(1)], likelihood=lik(), use_two_krons=True)
-    models.append({"model": m, "elbo": m.compute_log_likelihood()})
-    # models.append(m)
+    models.append(m)
 
 # Pseudo-inputs
-# for M in [4, 8, 16, 32]:
-#     kern = k(1, active_dims=[0]) * k(1, active_dims=[1])
-#     Z, _ = kmeans(X, M)
-#     m = gpflow.models.SVGP(X, Y, kern=kern, likelihood=lik(), Z=Z)
-#     models.append(m)
+for M in [4, 8, 16, 32]:
+    kern = k(1, active_dims=[0]) * k(1, active_dims=[1])
+    Z, _ = kmeans(X, M)
+    m = gpflow.models.SVGP(X, Y, kern=kern, likelihood=lik(), Z=Z)
+    models.append(m)
 
-# # full
-# m = gpflow.models.VGP(X, Y, kern=k(1, active_dims=[0]) * k(1, active_dims=[1]), likelihood=lik())
-# models.append(m)
+# full
+m = gpflow.models.VGP(X, Y, kern=k(1, active_dims=[0]) * k(1, active_dims=[1]), likelihood=lik())
+models.append(m)
 
 ###############
 for m in models:
-    m = m["model"]
     try:
         o = gpflow.train.ScipyOptimizer()
         o.minimize(m)
@@ -77,13 +72,11 @@ for m in models:
         print('model optimization failed')
 
 ###############
-labels = ['VFF 2', 'VFF 4', 'VFF 8', 'VFF 16']  #, 'IIP 4', 'IIP 8', 'IIP 16', 'IIP 32', 'Full']
+labels = ['VFF 2', 'VFF 4', 'VFF 8', 'VFF 16', 'IIP 4', 'IIP 8', 'IIP 16', 'IIP 32', 'Full']
 f, axes = plt.subplots(3, 3, sharex=True, sharey=True, figsize=(15, 15))
 axes = axes.flatten()
 for ax, lab, m in zip(axes, labels, models):
-    m["name"] = lab
     plot(m, ax)
-    m = m["model"]
     ax.set_title(lab)
     if hasattr(m, 'Z'):
         ax.plot(m.Z.value[:, 0], m.Z.value[:, 1], 'ko', ms=4)
@@ -91,9 +84,3 @@ for ax, lab, m in zip(axes, labels, models):
 
 # m2t.save('banana_compare.tikz')
 plt.savefig('banana_compare.png')
-
-import pickle as pkl
-for m in models: del m["model"]  # only keep elbo, name, and predicts
-pkl.dump(models, open( f"results_vff_banana.pkl", "wb" ) )
-
-plt.show()
