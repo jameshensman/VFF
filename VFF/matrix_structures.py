@@ -14,11 +14,12 @@
 
 
 import tensorflow as tf
-from gpflow import settings
 from functools import reduce
-float_type = settings.dtypes.float_type
+import gpflow
 import numpy as np
 
+
+float_type = gpflow.config.default_float()
 
 class BlockDiagMat_many:
     def __init__(self, mats):
@@ -202,10 +203,10 @@ class LowRankMat:
         return tf.diag(self.d) + tf.matmul(self.W, tf.transpose(self.W))
 
     def logdet(self):
-        part1 = tf.reduce_sum(tf.log(self.d))
+        part1 = tf.reduce_sum(tf.math.log(self.d))
         I = tf.eye(tf.shape(self.W)[1], float_type)
         M = I + tf.matmul(tf.transpose(self.W) / self.d, self.W)
-        part2 = 2*tf.reduce_sum(tf.log(tf.diag_part(tf.cholesky(M))))
+        part2 = 2*tf.reduce_sum(tf.math.log(tf.diag_part(tf.cholesky(M))))
         return part1 + part2
 
     def matmul(self, B):
@@ -327,11 +328,11 @@ class Rank1Mat:
 
     def get(self):
         V = tf.expand_dims(self.v, 1)
-        return tf.diag(self.d) + tf.matmul(V, tf.transpose(V))
+        return tf.linalg.diag(self.d) + tf.matmul(V, tf.transpose(V))
 
     def logdet(self):
-        return tf.reduce_sum(tf.log(self.d)) +\
-            tf.log(1. + tf.reduce_sum(tf.square(self.v) / self.d))
+        return tf.reduce_sum(tf.math.log(self.d)) +\
+            tf.math.log(1. + tf.reduce_sum(tf.square(self.v) / self.d))
 
     def matmul(self, B):
         V = tf.expand_dims(self.v, 1)
@@ -361,7 +362,7 @@ class Rank1Mat:
         RTX = tf.matmul(tf.transpose(R), X)
         RTXR = tf.matmul(RTX, R)
         M = 1 + tf.reduce_sum(tf.square(self.v) / self.d)
-        return tf.reduce_sum(tf.diag_part(X) / self.d) - RTXR / M
+        return tf.reduce_sum(tf.linalg.diag_part(X) / self.d) - RTXR / M
 
     def get_diag(self):
         return self.d + tf.square(self.v)
@@ -415,7 +416,7 @@ class Rank1MatNeg:
 
     def get(self):
         W = tf.expand_dims(self.v, 1)
-        return tf.diag(self.d) - tf.matmul(W, tf.transpose(W))
+        return tf.linalg.diag(self.d) - tf.matmul(W, tf.transpose(W))
 
 
 class DiagMat:
@@ -431,10 +432,10 @@ class DiagMat:
         return tf.size(self.d)
 
     def get(self):
-        return tf.diag(self.d)
+        return tf.linalg.diag(self.d)
 
     def logdet(self):
-        return tf.reduce_sum(tf.log(self.d))
+        return tf.reduce_sum(tf.math.log(self.d))
 
     def matmul(self, B):
         return tf.expand_dims(self.d, 1) * B
@@ -450,7 +451,7 @@ class DiagMat:
         X is a square matrix of the same size as this one.
         if self is K, compute tr(K^{-1} X)
         """
-        return tf.reduce_sum(tf.diag_part(X) / self.d)
+        return tf.reduce_sum(tf.linalg.diag_part(X) / self.d)
 
     def get_diag(self):
         return self.d

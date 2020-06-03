@@ -17,8 +17,8 @@ import numpy as np
 import gpflow
 import tensorflow as tf
 from .matrix_structures import DiagMat, Rank1Mat, LowRankMat, BlockDiagMat
-from gpflow import settings
-float_type = settings.dtypes.float_type
+
+float_type = gpflow.config.default_float()
 
 
 def make_Kuu(kern, a, b, ms):
