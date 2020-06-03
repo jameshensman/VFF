@@ -15,11 +15,14 @@
 
 from __future__ import print_function
 import numpy as np
-import GPflow
-import VFF
+import gpflow
 import pandas as pd
 import time
 import tensorflow as tf
+from scipy.stats import norm
+
+
+from VFF.gpr import GPR_additive
 
 # Import the data
 data = pd.read_pickle('airline.pickle')
@@ -64,7 +67,7 @@ def subset(data, n):
 repetitions = 10
 
 # Sample sizes: [10000, 100000, 1000000, len(data)]
-sample_size = [10000, 100000, 1000000, len(data)]
+sample_size = [int(10e3), int(100e3), int(1e6), len(data)]
 
 # MSE
 mse = np.zeros([repetitions, len(sample_size)])
@@ -82,9 +85,6 @@ for i in range(repetitions):
         # Lock random seed
         np.random.seed(sample_size[j]+i)
 
-        # Reset tensorflow
-        tf.reset_default_graph()
-
         # Reset clocks
         tc0 = time.clock()
         tt0 = time.time()
@@ -93,22 +93,36 @@ for i in range(repetitions):
         X, Y, XT, YT, Ymean, Ystd = subset(data, sample_size[j])
 
         # Set up the model
-        m = VFF.gpr.GPR_additive(X, Y, np.arange(30), np.zeros(X.shape[1]) - 2, np.ones(X.shape[1]) + 2,
-                                 [GPflow.kernels.Matern32(1) for k in range(X.shape[1])])
+        m = GPR_additive(
+            (X, Y),
+            np.arange(30),
+            np.zeros(X.shape[1]) - 2,
+            np.ones(X.shape[1]) + 2,
+            [gpflow.kernels.Matern32() for k in range(X.shape[1])]
+        )
 
         # Optimise the hyperparameters
-        m.optimize(disp=1)
+        # m.optimize(disp=1)
+        opt = gpflow.optimizers.Scipy()
+        opt.minimize(
+            m.training_loss,
+            m.trainable_variables,
+            options=dict(maxiter=5000),
+        )
 
         # Evaluate test points in batches of 1e5
-        mu, var = np.zeros([XT.shape[0], 1]), np.zeros([XT.shape[0], 1])
-        for k in range(0, XT.shape[0], 100000):
-            mu[k:k+100000], var[k:k+100000] = m.predict_y(XT[k:k+100000])
+        bs = int(1e5)
+        mu, var = [np.zeros([XT.shape[0], 1]) for _ in range(2)]
+        for ii, k in enumerate(range(0, XT.shape[0], bs)):
+            print(ii)
+            mu[k:k+bs], var[k:k+bs] = m.predict_y(XT[k:k+bs])
 
         # Calculate MSE
         mse[i, j] = ((mu-YT)**2).mean()
 
         # Calculate NLPD
-        nlpd[i, j] = -np.mean(m.predict_density(XT, YT))
+        l = norm.logpdf(YT, loc=mu, scale=var ** 0.5)
+        nlpd[i, j] = -np.mean(l)
 
         # Store time
         tc[i, j] = time.clock() - tc0
@@ -118,8 +132,10 @@ for i in range(repetitions):
         rmse[i, j] = np.sqrt(((Ystd*mu-Ystd*YT)**2).mean())
 
     # The results after this round
-    print(mse[:i+1].mean(axis=0))
-    print(mse[:i+1].std(axis=0))
+    print("results so far")
+    print("mse", mse)
+    print("mse mean", mse[:i+1].mean(axis=0))
+    print("mse std", mse[:i+1].std(axis=0))
 
 print('MSE:')
 print(mse.mean(axis=0))

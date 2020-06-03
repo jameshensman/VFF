@@ -15,11 +15,13 @@
 
 from __future__ import print_function
 import numpy as np
-import GPflow
+import gpflow
 import pandas as pd
 import tensorflow as tf
 import sys
 import time
+
+from scipy.stats import norm
 
 # Import the data
 data = pd.read_pickle('airline.pickle')
@@ -97,23 +99,21 @@ for i in range(repetitions):
         Z, _ = vq.kmeans(X[ind, :], 500)
 
         # Set up the model
-        m = GPflow.svgp.SVGP(X, Y, kern=GPflow.kernels.RBF(X.shape[1], ARD=True),
-                             Z=Z, likelihood=GPflow.likelihoods.Gaussian(), minibatch_size=1000)
-
-        # a callback so we can see what's happening
-        _counter = 0
-        def cb(x):
-            _counter += 1
-            if (_counter % 10) == 0:
-                m.set_state(x)
-                mu, _ = m.predict_y(XT)
-                mse = ((mu-YT)**2).mean()
-                print(_counter, m.compute_log_likelihood(), mse)
-                sys.stdout.flush()
+        m = gpflow.models.SVGP(
+            kernel=gpflow.kernels.Matern32(lengthscales=np.ones(X.shape[1])),
+            likelihood=gpflow.likelihoods.Gaussian(),
+            inducing_variable=gpflow.inducing_variables.InducingPoints(Z),
+            num_data=X.shape[0]
+        )
 
         # Optimise the hyperparameters
-        o = tf.train.AdamOptimizer()
-        m.optimize(o, maxiter=100000)
+        opt = tf.optimizers.Adam()
+        maxiter = 100000
+        data = tf.data.Dataset.from_tensor_slices((X, Y)).batch(int(1e3))
+        obj = m.training_loss_closure(iter(data))
+        for i in range(maxiter):
+            if i % 11 == 0: print(i, obj())
+            opt.minimize(obj, var_list=m.trainable_variables)
 
         # Evaluate test points in batches of 1e5
         mu, var = np.zeros([XT.shape[0], 1]), np.zeros([XT.shape[0], 1])
@@ -125,7 +125,8 @@ for i in range(repetitions):
         print(X.shape[0], mse[i, j])
 
         # Calculate NLPD
-        nlpd[i, j] = -np.mean(m.predict_density(XT, YT))
+        l = norm.logpdf(YT, loc=mu, scale=var ** 0.5)
+        nlpd[i, j] = -np.mean(l)
 
         # Store time
         tc[i, j] = time.clock() - tc0
