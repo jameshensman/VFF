@@ -62,7 +62,7 @@ def kron_vec_triangular_solve(L, vec, lower=True):
 
     def f(v, L_d):
         v = tf.reshape(v, tf.stack([tf.shape(L_d)[1], -1]))
-        v = tf.matrix_triangular_solve(L_d, v, lower=lower)
+        v = tf.linalg.triangular_solve(L_d, v, lower=lower)
         return tf.reshape(
             tf.transpose(v), N_by_1
         )  # transposing first flattens the vector in column order
@@ -156,7 +156,7 @@ def kvs_dot_vec_loop(k, c):
         for ki in k_list:
             Di = tf.shape(ki)[1]
             c_vec = tf.transpose(tf.reshape(c_vec, tf.stack([Di, -1])))
-            c_vec = tf.matmul(c_vec, tf.transpose(ki))
+            c_vec = tf.matmul(c_vec, tf.transpose(ki))  # XXX
         return c_vec
 
     N = tf.shape(k[0])[0]
@@ -184,7 +184,7 @@ def kvs_dot_vec_specialfirst(k, c):
     # do the first matmul in a special way that saves us from tiling...
     D0 = tf.shape(k[0])[1]
     C = tf.transpose(tf.reshape(c, tf.stack([D0, -1])))
-    C = tf.transpose(tf.matmul(C, tf.transpose(k[0])))
+    C = tf.transpose(tf.matmul(C, tf.transpose(k[0])))  # XXX
     C = tf.expand_dims(C, 2)
 
     # do the remaining matmuls in the same way as the memhungry version
@@ -217,6 +217,17 @@ def log_det_kron_sum_np(L1, L2):
     return np.sum(np.log(1 + reduce(np.kron, eigvals))) + L1_logdet
 
 
+def workaround__self_adjoint_eigvals(mat):
+    """
+    The gradient of tensorflow.self_adjoint_eigvals() is currently broken,
+    see https://github.com/tensorflow/tensorflow/issues/11821
+
+    This works (but is less efficient).
+    """
+    eigvals, _ = tf.linalg.eigh(mat)
+    return eigvals
+
+
 def log_det_kron_sum(L1, L2):
     """
     L1 is a list of lower triangular arrays.
@@ -225,16 +236,18 @@ def log_det_kron_sum(L1, L2):
     if S1 = kron(L1) * kron(L1).T, and S2 similarly,
     this function computes the log determinant of S1 + S2
     """
-    L1_logdets = [tf.reduce_sum(tf.log(tf.square(tf.diag_part(L)))) for L in L1]
-    total_size = reduce(tf.mul, [L.shape[0] for L in L1])
+    L1_logdets = [tf.reduce_sum(tf.math.log(tf.square(tf.linalg.diag_part(L)))) for L in L1]
+    total_size = reduce(tf.multiply, [tf.shape(L)[0] for L in L1])
     N_other = [total_size / tf.shape(L)[0] for L in L1]
     L1_logdet = reduce(tf.add, [s * ld for s, ld in zip(N_other, L1_logdets)])
-    LiL = [tf.matrix_triangular_solve(L, R) for L, R in zip(L1, L2)]
-    eigvals = [tf.self_adjoint_eigvals(tf.matmul(mat, mat.T)) for mat in LiL]
+    LiL = [tf.linalg.triangular_solve(L, R) for L, R in zip(L1, L2)]
+    eigvals = [
+        workaround__self_adjoint_eigvals(tf.matmul(mat, mat, transpose_b=True)) for mat in LiL
+    ]
     eigvals_kronned = kron_vec_mul(
         [tf.reshape(e, [-1, 1]) for e in eigvals], tf.ones([1, 1], tf.float64)
     )
-    return tf.reduce_sum(tf.log(1 + eigvals_kronned)) + L1_logdet
+    return tf.reduce_sum(tf.math.log(1 + eigvals_kronned)) + L1_logdet
 
 
 if __name__ == "__main__":
@@ -242,10 +255,6 @@ if __name__ == "__main__":
     K = [np.random.randn(1000, 400) for i in range(2)]
     c = np.random.randn(400 ** 2, 1)
 
-    sess = tf.Session()
     r1 = kvs_dot_vec_memhungry(K, c)
     r2 = kvs_dot_vec_loop(K, c)
     r3 = kvs_dot_vec_specialfirst(K, c)
-    rr1 = sess.run(r1)
-    rr2 = sess.run(r2)
-    rr3 = sess.run(r3)

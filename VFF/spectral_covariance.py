@@ -150,15 +150,15 @@ def make_Kuf(k, X, a, b, ms):
         Kuf_sin = tf.where(gt_b_sin, edge, Kuf_sin)
     elif isinstance(k, gpflow.kernels.Matern52):
         # edges not implemented yet
-        Kuf_cos = tf.with_dependencies(
-            [tf.assert_greater_equal(X, a)],
-            Kuf_cos,
+        tf.debugging.assert_greater_equal(
+            X,
+            a,
             message="Edges not implemented for Matern52",
             name="assert_left_edge",
         )
-        Kuf_sin = tf.with_dependencies(
-            [tf.assert_less_equal(X, b)],
-            Kuf_sin,
+        tf.debugging.assert_less_equal(
+            X,
+            b,
             message="Edges not implemented for Matern52",
             name="assert_right_edge",
         )

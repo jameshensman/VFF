@@ -207,17 +207,17 @@ class LowRankMat:
         return tf.size(self.d) + tf.shape(W)[1]
 
     def get(self):
-        return tf.diag(self.d) + tf.matmul(self.W, tf.transpose(self.W))
+        return tf.linalg.diag(self.d) + tf.matmul(self.W, self.W, transpose_b=True)
 
     def logdet(self):
-        part1 = tf.reduce_sum(tf.log(self.d))
-        I = tf.eye(tf.shape(self.W)[1], default_float())
-        M = I + tf.matmul(tf.transpose(self.W) / self.d, self.W)
-        part2 = 2 * tf.reduce_sum(tf.log(tf.diag_part(tf.cholesky(M))))
+        part1 = tf.reduce_sum(tf.math.log(self.d))
+        I = tf.eye(tf.shape(self.W)[1], dtype=default_float())
+        M = I + tf.matmul(tf.transpose(self.W) / self.d, self.W)  # XXX
+        part2 = 2 * tf.reduce_sum(tf.math.log(tf.linalg.diag_part(tf.linalg.cholesky(M))))
         return part1 + part2
 
     def matmul(self, B):
-        WTB = tf.matmul(tf.transpose(self.W), B)
+        WTB = tf.matmul(self.W, B, transpose_a=True)
         WWTB = tf.matmul(self.W, WTB)
         DB = tf.reshape(self.d, [-1, 1]) * B
         return DB + WWTB
@@ -229,20 +229,19 @@ class LowRankMat:
         d_col = tf.expand_dims(self.d, 1)
         DiB = B / d_col
         DiW = self.W / d_col
-        WTDiB = tf.matmul(tf.transpose(DiW), B)
-        M = tf.eye(tf.shape(self.W)[1], default_float()) + tf.matmul(tf.transpose(DiW), self.W)
-        L = tf.cholesky(M)
-        tmp1 = tf.matrix_triangular_solve(L, WTDiB, lower=True)
-        tmp2 = tf.matrix_triangular_solve(tf.transpose(L), tmp1, lower=False)
-        return DiB - tf.matmul(DiW, tmp2)
+        WTDiB = tf.matmul(DiW, B, transpose_a=True)
+        M = tf.eye(tf.shape(self.W)[1], dtype=default_float()) + tf.matmul(DiW, self.W, transpose_a=True)
+        L = tf.linalg.cholesky(M)
+        Minv_WTDiB = tf.linalg.cholesky_solve(L, WTDiB)
+        return DiB - tf.matmul(DiW, Minv_WTDiB)
 
     def inv(self):
-        di = tf.reciprocal(self.d)
+        di = tf.math.reciprocal(self.d)
         d_col = tf.expand_dims(self.d, 1)
         DiW = self.W / d_col
-        M = tf.eye(tf.shape(self.W)[1], default_float()) + tf.matmul(tf.transpose(DiW), self.W)
-        L = tf.cholesky(M)
-        v = tf.transpose(tf.matrix_triangular_solve(L, tf.transpose(DiW), lower=True))
+        M = tf.eye(tf.shape(self.W)[1], dtype=default_float()) + tf.matmul(DiW, self.W, transpose_a=True)
+        L = tf.linalg.cholesky(M)
+        v = tf.transpose(tf.linalg.triangular_solve(L, tf.transpose(DiW), lower=True))  # XXX
         return LowRankMatNeg(di, V)
 
     def trace_KiX(self, X):
@@ -252,18 +251,18 @@ class LowRankMat:
         """
         d_col = tf.expand_dims(self.d, 1)
         R = self.W / d_col
-        RTX = tf.matmul(tf.transpose(R), X)
+        RTX = tf.matmul(R, X, transpose_a=True)
         RTXR = tf.matmul(RTX, R)
-        M = tf.eye(tf.shape(self.W)[1], default_float()) + tf.matmul(tf.transpose(R), self.W)
-        Mi = tf.matrix_inverse(M)
-        return tf.reduce_sum(tf.diag_part(X) * 1.0 / self.d) - tf.reduce_sum(RTXR * Mi)
+        M = tf.eye(tf.shape(self.W)[1], dtype=default_float()) + tf.matmul(R, self.W, transpose_a=True)
+        Mi = tf.linalg.inv(M)
+        return tf.reduce_sum(tf.linalg.diag_part(X) * 1.0 / self.d) - tf.reduce_sum(RTXR * Mi)
 
     def inv_diag(self):
         d_col = tf.expand_dims(self.d, 1)
-        WTDi = tf.transpose(self.W / d_col)
-        M = tf.eye(tf.shape(self.W)[1], default_float()) + tf.matmul(WTDi, self.W)
-        L = tf.cholesky(M)
-        tmp1 = tf.matrix_triangular_solve(L, WTDi, lower=True)
+        WTDi = tf.transpose(self.W / d_col)  # XXX
+        M = tf.eye(tf.shape(self.W)[1], dtype=default_float()) + tf.matmul(WTDi, self.W)
+        L = tf.linalg.cholesky(M)
+        tmp1 = tf.linalg.triangular_solve(L, WTDi, lower=True)
         return 1.0 / self.d - tf.reduce_sum(tf.square(tmp1), 0)
 
     def matmul_sqrt(self, B):
@@ -276,7 +275,7 @@ class LowRankMat:
         """
 
         DB = tf.expand_dims(tf.sqrt(self.d), 1) * B
-        VTB = tf.matmul(tf.transpose(self.W), B)
+        VTB = tf.matmul(self.W, B, transpose_a=True)
         return tf.concat([DB, VTB], axis=0)
 
     def matmul_sqrt_transpose(self, B):
@@ -309,7 +308,7 @@ class LowRankMatNeg:
         return (tf.size(self.d), tf.size(self.d))
 
     def get(self):
-        return tf.diag(self.d) - tf.matmul(self.W, tf.transpose(self.W))
+        return tf.linalg.diag(self.d) - tf.matmul(self.W, self.W, transpose_b=True)
 
 
 class Rank1Mat:
@@ -333,25 +332,27 @@ class Rank1Mat:
 
     def get(self):
         V = tf.expand_dims(self.v, 1)
-        return tf.diag(self.d) + tf.matmul(V, tf.transpose(V))
+        return tf.linalg.diag(self.d) + tf.matmul(V, V, transpose_b=True)
 
     def logdet(self):
-        return tf.reduce_sum(tf.log(self.d)) + tf.log(
+        return tf.reduce_sum(tf.math.log(self.d)) + tf.math.log(
             1.0 + tf.reduce_sum(tf.square(self.v) / self.d)
         )
 
     def matmul(self, B):
         V = tf.expand_dims(self.v, 1)
-        return tf.expand_dims(self.d, 1) * B + tf.matmul(V, tf.matmul(tf.transpose(V), B))
+        return tf.expand_dims(self.d, 1) * B + tf.matmul(V, tf.matmul(V, B, transpose_a=True))
 
     def solve(self, B):
         div = self.v / self.d
         c = 1.0 + tf.reduce_sum(div * self.v)
         div = tf.expand_dims(div, 1)
-        return B / tf.expand_dims(self.d, 1) - tf.matmul(div / c, tf.matmul(tf.transpose(div), B))
+        return B / tf.expand_dims(self.d, 1) - tf.matmul(
+            div / c, tf.matmul(div, B, transpose_a=True)
+        )
 
     def inv(self):
-        di = tf.reciprocal(self.d)
+        di = tf.math.reciprocal(self.d)
         Div = self.v * di
         M = 1.0 + tf.reduce_sum(Div * self.v)
         v_new = Div / tf.sqrt(M)
@@ -363,10 +364,10 @@ class Rank1Mat:
         if self is K, compute tr(K^{-1} X)
         """
         R = tf.expand_dims(self.v / self.d, 1)
-        RTX = tf.matmul(tf.transpose(R), X)
+        RTX = tf.matmul(R, X, transpose_a=True)
         RTXR = tf.matmul(RTX, R)
         M = 1 + tf.reduce_sum(tf.square(self.v) / self.d)
-        return tf.reduce_sum(tf.diag_part(X) / self.d) - RTXR / M
+        return tf.reduce_sum(tf.linalg.diag_part(X) / self.d) - RTXR / M
 
     def get_diag(self):
         return self.d + tf.square(self.v)
@@ -420,7 +421,7 @@ class Rank1MatNeg:
 
     def get(self):
         W = tf.expand_dims(self.v, 1)
-        return tf.diag(self.d) - tf.matmul(W, tf.transpose(W))
+        return tf.linalg.diag(self.d) - tf.matmul(W, W, transpose_b=True)
 
 
 class DiagMat:
@@ -436,10 +437,10 @@ class DiagMat:
         return tf.size(self.d)
 
     def get(self):
-        return tf.diag(self.d)
+        return tf.linalg.diag(self.d)
 
     def logdet(self):
-        return tf.reduce_sum(tf.log(self.d))
+        return tf.reduce_sum(tf.math.log(self.d))
 
     def matmul(self, B):
         return tf.expand_dims(self.d, 1) * B
@@ -455,7 +456,7 @@ class DiagMat:
         X is a square matrix of the same size as this one.
         if self is K, compute tr(K^{-1} X)
         """
-        return tf.reduce_sum(tf.diag_part(X) / self.d)
+        return tf.reduce_sum(tf.linalg.diag_part(X) / self.d)
 
     def get_diag(self):
         return self.d

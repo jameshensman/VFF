@@ -1,3 +1,4 @@
+# Copyright 2020 ST John
 # Copyright 2016 James Hensman
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -13,8 +14,8 @@
 # limitations under the License.
 
 
-from .gpmc import GPMC_1d, GPMC_kron
 from .vgp import VGP_1d, VGP_kron, VGP_additive
-from .gpr import GPR_1d, GPR_additive
 
-from .ssgp import SSGP
+# from .gpmc import GPMC_1d, GPMC_kron  # TODO
+# from .gpr import GPR_1d, GPR_additive  # TODO
+# from .ssgp import SSGP  # TODO

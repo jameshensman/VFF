@@ -58,13 +58,15 @@ class VGP_1d(gpflow.models.GPModel):
         Kuu = make_Kuu(self.kern, self.a, self.b, self.ms)
         KiKuf = Kuu.solve(Kuf)
 
-        mu = tf.matmul(tf.transpose(KiKuf), self.q_mu)
+        mu = tf.matmul(KiKuf, self.q_mu, transpose_a=True)
         tmp1 = tf.expand_dims(self.q_sqrt, 1) * KiKuf
         if full_cov:
             # Kff
             var = self.kern.K(X)
-            var = var + tf.matmul(tf.transpose(tmp1), tmp1)  # Projected variance Kfu Ki S Ki Kuf
-            var = var - tf.matmul(tf.transpose(Kuf), KiKuf)  # Qff
+            var = var + tf.matmul(
+                tmp1, tmp1, transpose_a=True
+            )  # Projected variance Kfu Ki S Ki Kuf
+            var = var - tf.matmul(Kuf, KiKuf, transpose_a=True)  # Qff
             var = tf.expand_dims(var, 2)
 
         else:
@@ -84,10 +86,10 @@ class VGP_1d(gpflow.models.GPModel):
         """
         Kuu = make_Kuu(self.kern, self.a, self.b, self.ms)
         Kim = Kuu.solve(self.q_mu)
-        KL = 0.5 * tf.squeeze(tf.matmul(tf.transpose(Kim), self.q_mu))  # Mahalanobis term
-        KL += 0.5 * Kuu.trace_KiX(tf.diag(tf.square(tf.reshape(self.q_sqrt, [-1]))))
+        KL = 0.5 * tf.squeeze(tf.matmul(Kim, self.q_mu, transpose_a=True))  # Mahalanobis term
+        KL += 0.5 * Kuu.trace_KiX(tf.linalg.diag(tf.square(tf.reshape(self.q_sqrt, [-1]))))
         KL += -0.5 * tf.cast(tf.size(self.q_mu), default_float())  # Constant term.
-        KL += -0.5 * tf.reduce_sum(tf.log(tf.square(self.q_sqrt)))  # Log det Q
+        KL += -0.5 * tf.reduce_sum(tf.math.log(tf.square(self.q_sqrt)))  # Log det Q
         KL += 0.5 * Kuu.logdet()  # Log det P
         return KL
 
@@ -185,7 +187,7 @@ class VGP_additive(gpflow.models.GPModel):
         KiKuf = [Kuu_d.solve(Kuf_d) for Kuu_d, Kuf_d in zip(Kuu, Kuf)]
 
         RKiKuf = [Kuu_d.matmul_sqrt(KiKuf_d) for Kuu_d, KiKuf_d in zip(Kuu, KiKuf)]
-        KfuKiR = [tf.transpose(RKiKuf_d) for RKiKuf_d in RKiKuf]
+        KfuKiR = [tf.transpose(RKiKuf_d) for RKiKuf_d in RKiKuf]  # XXX
 
         mu_d = [
             tf.matmul(KfuKiR_d, q_mu_d)
@@ -224,7 +226,7 @@ class VGP_additive(gpflow.models.GPModel):
         KL = 0.5 * tf.reduce_sum(tf.square(self.q_mu))  # Mahalanobis term
         KL += -0.5 * tf.cast(tf.size(self.q_mu), default_float())  # Constant term.
         KL += -0.5 * reduce(
-            tf.add, [tf.reduce_sum(tf.log(tf.square(q_sqrt_d))) for q_sqrt_d in self.q_sqrt]
+            tf.add, [tf.reduce_sum(tf.math.log(tf.square(q_sqrt_d))) for q_sqrt_d in self.q_sqrt]
         )  # Log det
         KL += 0.5 * reduce(
             tf.add, [tf.reduce_sum(tf.square(q_sqrt_d)) for q_sqrt_d in self.q_sqrt]
@@ -312,7 +314,7 @@ class VGP_kron(gpflow.models.GPModel):
         ]
         Kuu = [make_Kuu(kern, a, b, self.ms) for kern, a, b, in zip(self.kerns, self.a, self.b)]
         KiKuf = [Kuu_d.solve(Kuf_d) for Kuu_d, Kuf_d in zip(Kuu, Kuf)]
-        KfuKi = [tf.transpose(mat) for mat in KiKuf]
+        KfuKi = [tf.transpose(mat) for mat in KiKuf]  # XXX
 
         mu = kvs_dot_vec(KfuKi, self.q_mu)
 
@@ -323,13 +325,13 @@ class VGP_kron(gpflow.models.GPModel):
             var = reduce(tf.multiply, [k.Kdiag(X[:, i : i + 1]) for i, k in enumerate(self.kerns)])
 
             # Projected variance Kfu Ki [WWT] Ki Kuf
-            Ls = [tf.matrix_band_part(q_sqrt_d, -1, 0) for q_sqrt_d in self.q_sqrt_kron]
-            tmp = [tf.matmul(tf.transpose(L), KiKuf_d) for L, KiKuf_d in zip(Ls, KiKuf)]
+            Ls = [tf.linalg.band_part(q_sqrt_d, -1, 0) for q_sqrt_d in self.q_sqrt_kron]
+            tmp = [tf.matmul(L, KiKuf_d, transpose_a=True) for L, KiKuf_d in zip(Ls, KiKuf)]
             var = var + reduce(tf.multiply, [tf.reduce_sum(tf.square(tmp_d), 0) for tmp_d in tmp])
 
             if self.use_two_krons:
-                Ls = [tf.matrix_band_part(q_sqrt_d, -1, 0) for q_sqrt_d in self.q_sqrt_kron_2]
-                tmp = [tf.matmul(tf.transpose(L), KiKuf_d) for L, KiKuf_d in zip(Ls, KiKuf)]
+                Ls = [tf.linalg.band_part(q_sqrt_d, -1, 0) for q_sqrt_d in self.q_sqrt_kron_2]
+                tmp = [tf.matmul(L, KiKuf_d, transpose_a=True) for L, KiKuf_d in zip(Ls, KiKuf)]
                 var = var + reduce(
                     tf.multiply, [tf.reduce_sum(tf.square(tmp_d), 0) for tmp_d in tmp]
                 )
@@ -353,7 +355,7 @@ class VGP_kron(gpflow.models.GPModel):
 
         Kuu = [make_Kuu(kern, a, b, self.ms) for kern, a, b, in zip(self.kerns, self.a, self.b)]
         KiKuf = [Kuu_d.solve(Kuf_d) for Kuu_d, Kuf_d in zip(Kuu, Kuf)]
-        KfuKi = [tf.transpose(mat) for mat in KiKuf]
+        KfuKi = [tf.transpose(mat) for mat in KiKuf]  # XXX
 
         mu = kvs_dot_vec(KfuKi, self.q_mu)
 
@@ -361,13 +363,13 @@ class VGP_kron(gpflow.models.GPModel):
         var = reduce(tf.multiply, [k.Kdiag(self.X[:, i : i + 1]) for i, k in enumerate(self.kerns)])
 
         # Projected variance Kfu Ki [WWT] Ki Kuf
-        Ls = [tf.matrix_band_part(q_sqrt_d, -1, 0) for q_sqrt_d in self.q_sqrt_kron]
-        tmp = [tf.matmul(tf.transpose(L), KiKuf_d) for L, KiKuf_d in zip(Ls, KiKuf)]
+        Ls = [tf.linalg.band_part(q_sqrt_d, -1, 0) for q_sqrt_d in self.q_sqrt_kron]
+        tmp = [tf.matmul(L, KiKuf_d, transpose_a=True) for L, KiKuf_d in zip(Ls, KiKuf)]
         var = var + reduce(tf.multiply, [tf.reduce_sum(tf.square(tmp_d), 0) for tmp_d in tmp])
 
         if self.use_two_krons:
-            Ls = [tf.matrix_band_part(q_sqrt_d, -1, 0) for q_sqrt_d in self.q_sqrt_kron_2]
-            tmp = [tf.matmul(tf.transpose(L), KiKuf_d) for L, KiKuf_d in zip(Ls, KiKuf)]
+            Ls = [tf.linalg.band_part(q_sqrt_d, -1, 0) for q_sqrt_d in self.q_sqrt_kron_2]
+            tmp = [tf.matmul(L, KiKuf_d, transpose_a=True) for L, KiKuf_d in zip(Ls, KiKuf)]
             var = var + reduce(tf.multiply, [tf.reduce_sum(tf.square(tmp_d), 0) for tmp_d in tmp])
         elif self.use_extra_ranks:
             for i in range(self.use_extra_ranks):
@@ -399,13 +401,13 @@ class VGP_kron(gpflow.models.GPModel):
         KL += -0.5 * tf.cast(tf.size(self.q_mu), default_float())
 
         # Log det term
-        Ls = [tf.matrix_band_part(q_sqrt_d, -1, 0) for q_sqrt_d in self.q_sqrt_kron]
+        Ls = [tf.linalg.band_part(q_sqrt_d, -1, 0) for q_sqrt_d in self.q_sqrt_kron]
         N_others = [float(np.prod(self.Ms)) / M for M in self.Ms]
-        Q_logdets = [tf.reduce_sum(tf.log(tf.square(tf.diag_part(L)))) for L in Ls]
+        Q_logdets = [tf.reduce_sum(tf.math.log(tf.square(tf.linalg.diag_part(L)))) for L in Ls]
         KL += -0.5 * reduce(tf.add, [N * logdet for N, logdet in zip(N_others, Q_logdets)])
 
         # trace term tr(K^{-1} Sigma_q)
-        Ss = [tf.matmul(L, tf.transpose(L)) for L in Ls]
+        Ss = [tf.matmul(L, L, transpose_b=True) for L in Ls]
         traces = [K.trace_KiX(S) for K, S, in zip(Kuu, Ss)]
         KL += 0.5 * reduce(tf.multiply, traces)  # kron-trace is the produce of traces
 
@@ -415,28 +417,28 @@ class VGP_kron(gpflow.models.GPModel):
 
         if self.use_two_krons:
             # extra logdet terms:
-            Ls_2 = [tf.matrix_band_part(q_sqrt_d, -1, 0) for q_sqrt_d in self.q_sqrt_kron_2]
-            LiL = [tf.matrix_triangular_solve(L1, L2) for L1, L2 in zip(Ls, Ls_2)]
+            Ls_2 = [tf.linalg.band_part(q_sqrt_d, -1, 0) for q_sqrt_d in self.q_sqrt_kron_2]
+            LiL = [tf.linalg.triangular_solve(L1, L2) for L1, L2 in zip(Ls, Ls_2)]
             eigvals = [
-                tf.self_adjoint_eig(tf.matmul(tf.transpose(mat), mat))[0] for mat in LiL
-            ]  # discard eigenvectors
+                tf.linalg.eigh(tf.matmul(mat, mat, transpose_a=True))[0] for mat in LiL
+            ]  # discard eigenvectors  # XXX
             eigvals_kronned = kron([tf.reshape(e, [1, -1]) for e in eigvals])
-            KL += -0.5 * tf.reduce_sum(tf.log(1 + eigvals_kronned))
+            KL += -0.5 * tf.reduce_sum(tf.math.log(1 + eigvals_kronned))
 
             # extra trace terms
-            Ss = [tf.matmul(L, tf.transpose(L)) for L in Ls_2]
+            Ss = [tf.matmul(L, L, transpose_b=True) for L in Ls_2]
             traces = [K.trace_KiX(S) for K, S, in zip(Kuu, Ss)]
             KL += 0.5 * reduce(tf.multiply, traces)  # kron-trace is the produce of traces
 
         elif self.use_extra_ranks:
             # extra logdet terms
             KiW = kron_mat_apply(Kuu, self.q_sqrt_W, "solve", self.use_extra_ranks)
-            WTKiW = tf.matmul(tf.transpose(self.q_sqrt_W), KiW)
-            L_extra = tf.cholesky(np.eye(self.use_extra_ranks) + WTKiW)
-            KL += -0.5 * tf.reduce_sum(tf.log(tf.square(tf.diag_part(L_extra))))
+            WTKiW = tf.matmul(self.q_sqrt_W, KiW, transpose_a=True)
+            L_extra = tf.linalg.cholesky(np.eye(self.use_extra_ranks) + WTKiW)
+            KL += -0.5 * tf.reduce_sum(tf.math.log(tf.square(tf.linalg.diag_part(L_extra))))
 
             # extra trace terms
-            KL += 0.5 * tf.reduce_sum(tf.diag_part(WTKiW))
+            KL += 0.5 * tf.reduce_sum(tf.linalg.diag_part(WTKiW))
 
         return KL
 
@@ -514,11 +516,11 @@ class VGP_kron_anyvar(gpflow.models.GPModel):
         ]
         Kuu = [make_Kuu(kern, a, b, self.ms) for kern, a, b, in zip(self.kerns, self.a, self.b)]
         KiKuf = [Kuu_d.solve(Kuf_d) for Kuu_d, Kuf_d in zip(Kuu, Kuf)]
-        KfuKi = [tf.transpose(mat) for mat in KiKuf]
+        KfuKi = [tf.transpose(mat) for mat in KiKuf]  # XXX
 
         mu = kvs_dot_vec(KfuKi, self.q_mu)
 
-        L = tf.matrix_band_part(self.q_sqrt, -1, 0)
+        L = tf.linalg.band_part(self.q_sqrt, -1, 0)
         tmp1 = kvs_dot_mat(KfuKi, L, np.prod(self.Ms))
 
         if full_cov:
@@ -545,10 +547,10 @@ class VGP_kron_anyvar(gpflow.models.GPModel):
         Kuf = self._Kuf
         Kuu = [make_Kuu(kern, a, b, self.ms) for kern, a, b, in zip(self.kerns, self.a, self.b)]
         KiKuf = [Kuu_d.solve(Kuf_d) for Kuu_d, Kuf_d in zip(Kuu, Kuf)]
-        KfuKi = [tf.transpose(mat) for mat in KiKuf]
+        KfuKi = [tf.transpose(mat) for mat in KiKuf]  # XXX
 
         mu = kvs_dot_vec(KfuKi, self.q_mu)
-        L = tf.matrix_band_part(self.q_sqrt, -1, 0)
+        L = tf.linalg.band_part(self.q_sqrt, -1, 0)
         tmp1 = kvs_dot_mat(KfuKi, L, num_cols=np.prod(self.Ms))
 
         # Kff:
@@ -577,11 +579,13 @@ class VGP_kron_anyvar(gpflow.models.GPModel):
         Kim = kron_vec_apply(Kuu, self.q_mu, "solve")
         KL = 0.5 * tf.reduce_sum(self.q_mu * Kim)  # Mahalanobis term
         KL += -0.5 * tf.cast(tf.size(self.q_mu), default_float())  # Constant term.
-        L = tf.matrix_band_part(self.q_sqrt, -1, 0)
-        Q_logdet = tf.reduce_sum(tf.log(tf.square(tf.diag_part(L))))
+        L = tf.linalg.band_part(self.q_sqrt, -1, 0)
+        Q_logdet = tf.reduce_sum(tf.math.log(tf.square(tf.linalg.diag_part(L))))
         KL += -0.5 * Q_logdet  # log determinat Sigma_q
-        S = tf.matmul(L, tf.transpose(L))
-        KL += 0.5 * tf.reduce_sum(tf.diag_part(kron_mat_apply(Kuu, S, "solve", np.prod(self.Ms))))
+        S = tf.matmul(L, L, transpose_b=True)
+        KL += 0.5 * tf.reduce_sum(
+            tf.linalg.diag_part(kron_mat_apply(Kuu, S, "solve", np.prod(self.Ms)))
+        )
         Kuu_logdets = [K.logdet() for K in Kuu]
         N_others = [tf.cast(tf.size(self.q_mu) / M, default_float()) for M in self.Ms]
         KL += 0.5 * reduce(
