@@ -22,7 +22,9 @@ import numpy as np
 def kron_two(A, B):
     """compute the Kronecker product of two tensorfow tensors"""
     shape = tf.stack([tf.shape(A)[0] * tf.shape(B)[0], tf.shape(A)[1] * tf.shape(B)[1]])
-    return tf.reshape(tf.expand_dims(tf.expand_dims(A, 1), 3) * tf.expand_dims(tf.expand_dims(B, 0), 2), shape)
+    return tf.reshape(
+        tf.expand_dims(tf.expand_dims(A, 1), 3) * tf.expand_dims(tf.expand_dims(B, 0), 2), shape
+    )
 
 
 def kron(K):
@@ -39,12 +41,15 @@ def kron_vec_mul(K, vec):
     def f(v, k):
         v = tf.reshape(v, tf.stack([tf.shape(k)[1], -1]))
         v = tf.matmul(k, v)
-        return tf.reshape(tf.transpose(v), N_by_1)  # transposing first flattens the vector in column order
+        return tf.reshape(
+            tf.transpose(v), N_by_1
+        )  # transposing first flattens the vector in column order
+
     return reduce(f, K, vec)
 
 
 def kron_mat_mul(K, mat, num_cols):
-    return tf.concat([kron_vec_mul(K, mat[:, i:i+1]) for i in range(num_cols)], axis=1)
+    return tf.concat([kron_vec_mul(K, mat[:, i : i + 1]) for i in range(num_cols)], axis=1)
 
 
 def kron_vec_triangular_solve(L, vec, lower=True):
@@ -57,12 +62,18 @@ def kron_vec_triangular_solve(L, vec, lower=True):
     def f(v, L_d):
         v = tf.reshape(v, tf.stack([tf.shape(L_d)[1], -1]))
         v = tf.matrix_triangular_solve(L_d, v, lower=lower)
-        return tf.reshape(tf.transpose(v), N_by_1)  # transposing first flattens the vector in column order
+        return tf.reshape(
+            tf.transpose(v), N_by_1
+        )  # transposing first flattens the vector in column order
+
     return reduce(f, L, vec)
 
 
 def kron_mat_triangular_solve(L, mat, num_cols, lower=True):
-    return tf.concat([kron_vec_triangular_solve(L, mat[:, i:i+1], lower=lower) for i in range(num_cols)], axis=1)
+    return tf.concat(
+        [kron_vec_triangular_solve(L, mat[:, i : i + 1], lower=lower) for i in range(num_cols)],
+        axis=1,
+    )
 
 
 def make_kvs_two(A, B):
@@ -77,12 +88,15 @@ def make_kvs(k):
     """Compute the kronecker-vector stack of the list of matrices k"""
     return reduce(make_kvs_two, k)
 
+
 def make_kvs_two_np(A, B):
     # return np.tile(A, [B.shape[0], 1]) * np.repeat(B, A.shape[0], axis=0)
     return np.repeat(A, B.shape[0], axis=0) * np.tile(B, [A.shape[0], 1])
 
+
 def make_kvs_np(A_list):
     return reduce(make_kvs_two_np, A_list)
+
 
 def kron_vec_apply(K, vec, attr):
     """
@@ -97,12 +111,15 @@ def kron_vec_apply(K, vec, attr):
     def f(v, k):
         v = tf.reshape(v, tf.stack([k.shape[1], -1]))
         v = getattr(k, attr)(v)
-        return tf.reshape(tf.transpose(v), N_by_1)  # transposing first flattens the vector in column order
+        return tf.reshape(
+            tf.transpose(v), N_by_1
+        )  # transposing first flattens the vector in column order
+
     return reduce(f, K, vec)
 
 
 def kron_mat_apply(K, mat, attr, num_cols):
-    return tf.concat([kron_vec_apply(K, mat[:, i:i+1], attr) for i in range(num_cols)], axis=1)
+    return tf.concat([kron_vec_apply(K, mat[:, i : i + 1], attr) for i in range(num_cols)], axis=1)
 
 
 def kvs_dot_vec_memhungry(k, c):
@@ -185,16 +202,15 @@ def kvs_dot_vec(k, c):
 
 
 def kvs_dot_mat(K, mat, num_cols):
-    return tf.concat([kvs_dot_vec(K, mat[:, i:i+1]) for i in range(num_cols)], axis=1)
+    return tf.concat([kvs_dot_vec(K, mat[:, i : i + 1]) for i in range(num_cols)], axis=1)
 
 
 def log_det_kron_sum_np(L1, L2):
-    """
-    """
+    """"""
     L1_logdets = [np.sum(np.log(np.square(np.diag(L)))) for L in L1]
     total_size = np.prod([L.shape[0] for L in L1])
     N_other = [total_size / L.shape[0] for L in L1]
-    L1_logdet = np.sum([s*ld for s, ld in zip(N_other, L1_logdets)])
+    L1_logdet = np.sum([s * ld for s, ld in zip(N_other, L1_logdets)])
     LiL = [np.linalg.solve(L, R) for L, R in zip(L1, L2)]
     eigvals = [np.linalg.eigvals(np.dot(mat, mat.T)) for mat in LiL]
     return np.sum(np.log(1 + reduce(np.kron, eigvals))) + L1_logdet
@@ -211,17 +227,19 @@ def log_det_kron_sum(L1, L2):
     L1_logdets = [tf.reduce_sum(tf.log(tf.square(tf.diag_part(L)))) for L in L1]
     total_size = reduce(tf.mul, [L.shape[0] for L in L1])
     N_other = [total_size / tf.shape(L)[0] for L in L1]
-    L1_logdet = reduce(tf.add, [s*ld for s, ld in zip(N_other, L1_logdets)])
+    L1_logdet = reduce(tf.add, [s * ld for s, ld in zip(N_other, L1_logdets)])
     LiL = [tf.matrix_triangular_solve(L, R) for L, R in zip(L1, L2)]
     eigvals = [tf.self_adjoint_eigvals(tf.matmul(mat, mat.T)) for mat in LiL]
-    eigvals_kronned = kron_vec_mul([tf.reshape(e, [-1, 1]) for e in eigvals], tf.ones([1, 1], tf.float64))
+    eigvals_kronned = kron_vec_mul(
+        [tf.reshape(e, [-1, 1]) for e in eigvals], tf.ones([1, 1], tf.float64)
+    )
     return tf.reduce_sum(tf.log(1 + eigvals_kronned)) + L1_logdet
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
 
     K = [np.random.randn(1000, 400) for i in range(2)]
-    c = np.random.randn(400**2, 1)
+    c = np.random.randn(400 ** 2, 1)
 
     sess = tf.Session()
     r1 = kvs_dot_vec_memhungry(K, c)

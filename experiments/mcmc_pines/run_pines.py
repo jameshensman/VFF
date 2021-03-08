@@ -21,19 +21,21 @@ from matplotlib import pyplot as plt
 
 
 def getLocations():
-    return np.loadtxt('pines.csv', delimiter=',')
+    return np.loadtxt("pines.csv", delimiter=",")
 
 
 def getCounts(gridResolution):
-    locations = np.loadtxt('pines.csv', delimiter=',')
-    counts, _ = np.histogramdd(locations, bins=(gridResolution, gridResolution), range=((0, 1.), (0., 1.)))
+    locations = np.loadtxt("pines.csv", delimiter=",")
+    counts, _ = np.histogramdd(
+        locations, bins=(gridResolution, gridResolution), range=((0, 1.0), (0.0, 1.0))
+    )
     return counts.reshape(-1, 1)
 
 
 def getGrid(gridResolution):
-    linearValues = np.linspace(0., 1., gridResolution+1)
+    linearValues = np.linspace(0.0, 1.0, gridResolution + 1)
     binEdges = np.array([np.array(elem) for elem in product(linearValues, linearValues)])
-    offsetValues = linearValues[:-1] + 0.5*np.diff(linearValues)[0]
+    offsetValues = linearValues[:-1] + 0.5 * np.diff(linearValues)[0]
     binMids = np.array([np.array(elem) for elem in product(offsetValues, offsetValues)])
     return binEdges, binMids
 
@@ -43,7 +45,7 @@ def set_priors(m):
     m.kerns[1].lengthscales.prior = GPflow.priors.Gamma(0.1, 1.0)
     m.kerns[0].variance.prior = GPflow.priors.Gamma(1.0, 1.0)
     m.kerns[1].fixed = True
-    m.mean_function.c.prior = GPflow.priors.Gaussian(0., 3.0)
+    m.mean_function.c.prior = GPflow.priors.Gaussian(0.0, 3.0)
 
 
 def plot_model(m, samples, gridResolution=64):
@@ -54,10 +56,13 @@ def plot_model(m, samples, gridResolution=64):
         intensities.append(mu)
     intensity = np.mean(intensities, 0)
     plt.figure()
-    plt.imshow(np.flipud(intensity.reshape(gridResolution, gridResolution).T),
-               interpolation='nearest', extent=[0, 1, 0, 1])
+    plt.imshow(
+        np.flipud(intensity.reshape(gridResolution, gridResolution).T),
+        interpolation="nearest",
+        extent=[0, 1, 0, 1],
+    )
     locs = getLocations()
-    plt.plot(locs[:, 0], locs[:, 1], 'k.')
+    plt.plot(locs[:, 0], locs[:, 1], "k.")
 
 
 def build_model(M, gridResolution=64):
@@ -67,7 +72,9 @@ def build_model(M, gridResolution=64):
     mf = GPflow.mean_functions.Constant()
     lik = GPflow.likelihoods.Poisson()
     a, b = np.array([-1, -1]), np.array([2, 2])
-    m = VFF.gpmc.GPMC_kron(binMids, counts, kerns=kerns, likelihood=lik, a=a, b=b, ms=np.arange(M), mean_function=mf)
+    m = VFF.gpmc.GPMC_kron(
+        binMids, counts, kerns=kerns, likelihood=lik, a=a, b=b, ms=np.arange(M), mean_function=mf
+    )
     return m
 
 
@@ -78,10 +85,11 @@ def init_model(m):
     m.optimize(maxiter=100)
     m.kerns.fixed = False
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     Ms = [14, 16, 18, 20, 22, 24, 26, 28, 30]
     for M in Ms:
-        print('M={}'.format(M))
+        print("M={}".format(M))
         m = build_model(M)
         set_priors(m)
         init_model(m)
@@ -89,4 +97,4 @@ if __name__ == '__main__':
         m.set_state(burn[-1])
         samples = m.sample(1000, epsilon=0.1, Lmin=8, Lmax=10, verbose=1)
         df = m.get_samples_df(samples)
-        df.to_pickle('samples_df_M{}.pickle'.format(M))
+        df.to_pickle("samples_df_M{}.pickle".format(M))

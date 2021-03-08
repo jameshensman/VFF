@@ -62,8 +62,9 @@ class SSGP(gpflow.models.GPModel):
         phi = tf.concat([tf.cos(phi), tf.sin(phi)], axis=1)
 
         # R = chol((sf2/m)*(phi'*phi) + sn2*eye(2*m));                            % calculate some often-used constants
-        A = (self.kern.variance / m_float) * tf.matmul(tf.transpose(phi), phi)\
-            + self.likelihood.variance * gpflow.tf_wraps.eye(2*m)
+        A = (self.kern.variance / m_float) * tf.matmul(
+            tf.transpose(phi), phi
+        ) + self.likelihood.variance * gpflow.tf_wraps.eye(2 * m)
         RT = tf.cholesky(A)
         R = tf.transpose(RT)
 
@@ -75,13 +76,21 @@ class SSGP(gpflow.models.GPModel):
 
         # % output NLML
         # out1=0.5/sn2*(sum(y_tr.^2)-sf2/m*sum(Rtiphity.^2))+ ...
-        out = 0.5/self.likelihood.variance*(tf.reduce_sum(tf.square(self.Y)) -
-                                            self.kern.variance/m_float*tf.reduce_sum(tf.square(Rtiphity)))
+        out = (
+            0.5
+            / self.likelihood.variance
+            * (
+                tf.reduce_sum(tf.square(self.Y))
+                - self.kern.variance / m_float * tf.reduce_sum(tf.square(Rtiphity))
+            )
+        )
         # +sum(log(diag(R)))+(n/2-m)*log(sn2)+n/2*log(2*pi);
         n = tf.cast(tf.shape(self.X)[0], tf.float64)
-        out += tf.reduce_sum(tf.log(tf.diag_part(R)))\
-            + (n/2.-m_float) * tf.log(self.likelihood.variance)\
-            + n/2*np.log(2*np.pi)
+        out += (
+            tf.reduce_sum(tf.log(tf.diag_part(R)))
+            + (n / 2.0 - m_float) * tf.log(self.likelihood.variance)
+            + n / 2 * np.log(2 * np.pi)
+        )
         return -out
 
     def build_predict(self, Xnew, full_cov=False):
@@ -96,8 +105,9 @@ class SSGP(gpflow.models.GPModel):
         phi = tf.concat([tf.cos(phi), tf.sin(phi)], axis=1)
 
         # R = chol((sf2/m)*(phi'*phi) + sn2*eye(2*m));                            % calculate some often-used constants
-        A = (self.kern.variance / m_float) * tf.matmul(tf.transpose(phi), phi)\
-            + self.likelihood.variance * gpflow.tf_wraps.eye(2*m)
+        A = (self.kern.variance / m_float) * tf.matmul(
+            tf.transpose(phi), phi
+        ) + self.likelihood.variance * gpflow.tf_wraps.eye(2 * m)
         RT = tf.cholesky(A)
         R = tf.transpose(RT)
 
@@ -122,12 +132,21 @@ class SSGP(gpflow.models.GPModel):
         PhiRistar = tf.transpose(RtiPhistart)
         # NB: do not add in noise variance to the predictive var: gpflow does that for us.
         if full_cov:
-            var = self.likelihood.variance * self.kern.variance / m_float *\
-                tf.matmul(PhiRistar, tf.transpose(PhiRistar)) + \
-                gpflow.tf_wraps.eye(tf.shape(Xnew)[0]) * 1e-6
+            var = (
+                self.likelihood.variance
+                * self.kern.variance
+                / m_float
+                * tf.matmul(PhiRistar, tf.transpose(PhiRistar))
+                + gpflow.tf_wraps.eye(tf.shape(Xnew)[0]) * 1e-6
+            )
             var = tf.expand_dims(var, 2)
         else:
-            var = self.likelihood.variance * self.kern.variance / m_float * tf.reduce_sum(tf.square(PhiRistar), 1)
+            var = (
+                self.likelihood.variance
+                * self.kern.variance
+                / m_float
+                * tf.reduce_sum(tf.square(PhiRistar), 1)
+            )
             var = tf.expand_dims(var, 1)
 
         return mean, var

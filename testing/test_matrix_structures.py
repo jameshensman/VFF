@@ -2,6 +2,7 @@ import numpy as np
 import tensorflow as tf
 from matrix_structures import DiagMat, Rank1Mat, LowRankMat, BlockDiagMat
 from unittest import TestCase
+
 np.random.seed(0)
 
 
@@ -88,14 +89,23 @@ class TestBlockMat(TestDiagMats):
         self.W2_np = np.random.randn(self.N2, 2)
         self.A1_np = np.diag(self.d1_np) + np.dot(self.W1_np, self.W1_np.T)
         self.A2_np = np.diag(self.d2_np) + np.dot(self.W2_np, self.W2_np.T)
-        self.A_np = np.vstack([np.hstack([self.A1_np, np.zeros([self.N1, self.N2])]),
-                               np.hstack([np.zeros([self.N2, self.N1]), self.A2_np])])
+        self.A_np = np.vstack(
+            [
+                np.hstack([self.A1_np, np.zeros([self.N1, self.N2])]),
+                np.hstack([np.zeros([self.N2, self.N1]), self.A2_np]),
+            ]
+        )
         self.d1_tf = tf.placeholder(tf.float64)
         self.W1_tf = tf.placeholder(tf.float64)
         self.d2_tf = tf.placeholder(tf.float64)
         self.W2_tf = tf.placeholder(tf.float64)
-        self.mat = BlockDiagMat(LowRankMat(self.d1_tf, self.W1_tf),
-                                LowRankMat(self.d2_tf, self.W2_tf))
+        self.mat = BlockDiagMat(
+            LowRankMat(self.d1_tf, self.W1_tf), LowRankMat(self.d2_tf, self.W2_tf)
+        )
         self.session = tf.Session()
-        self.feed = {self.d1_tf: self.d1_np, self.W1_tf: self.W1_np,
-                     self.d2_tf: self.d2_np, self.W2_tf: self.W2_np}
+        self.feed = {
+            self.d1_tf: self.d1_np,
+            self.W1_tf: self.W1_np,
+            self.d2_tf: self.d2_np,
+            self.W2_tf: self.W2_np,
+        }

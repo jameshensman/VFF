@@ -16,6 +16,7 @@
 import tensorflow as tf
 from gpflow import settings
 from functools import reduce
+
 float_type = settings.dtypes.float_type
 import numpy as np
 
@@ -68,7 +69,9 @@ class BlockDiagMat_many:
         return reduce(tf.add, [m.logdet() for m in self.mats])
 
     def matmul(self, X):
-        return tf.concat([m.matmul(Xi) for m, Xi in zip(self.mats, self._get_rhs_slices(X))], axis=0)
+        return tf.concat(
+            [m.matmul(Xi) for m, Xi in zip(self.mats, self._get_rhs_slices(X))], axis=0
+        )
 
     def solve(self, X):
         return tf.concat([m.solve(Xi) for m, Xi in zip(self.mats, self._get_rhs_slices(X))], axis=0)
@@ -81,7 +84,9 @@ class BlockDiagMat_many:
         X is a square matrix of the same size as this one.
         if self is K, compute tr(K^{-1} X)
         """
-        return reduce(tf.add, [m.trace_KiX(Xi) for m, Xi in zip(self.mats, self._get_rhs_blocks(X))])
+        return reduce(
+            tf.add, [m.trace_KiX(Xi) for m, Xi in zip(self.mats, self._get_rhs_blocks(X))]
+        )
 
     def get_diag(self):
         return tf.concat([m.get_diag() for m in self.mats], axis=0)
@@ -90,13 +95,17 @@ class BlockDiagMat_many:
         return tf.concat([m.inv_diag() for m in self.mats], axis=0)
 
     def matmul_sqrt(self, X):
-        return tf.concat([m.matmul_sqrt(Xi) for m, Xi in zip(self.mats, self._get_rhs_slices(X))], axis=0)
+        return tf.concat(
+            [m.matmul_sqrt(Xi) for m, Xi in zip(self.mats, self._get_rhs_slices(X))], axis=0
+        )
 
     def matmul_sqrt_transpose(self, X):
         ret = []
         start = np.zeros((2, np.int32))
         for m in self.mats:
-            ret.append(m.matmul_sqrt_transpose(tf.slice(X, begin=start, size=tf.stack([m.sqrt_dims, -1]))))
+            ret.append(
+                m.matmul_sqrt_transpose(tf.slice(X, begin=start, size=tf.stack([m.sqrt_dims, -1])))
+            )
             start[0] += m.sqrt_dims
 
         return tf.concat(ret, axis=0)
@@ -205,7 +214,7 @@ class LowRankMat:
         part1 = tf.reduce_sum(tf.log(self.d))
         I = tf.eye(tf.shape(self.W)[1], float_type)
         M = I + tf.matmul(tf.transpose(self.W) / self.d, self.W)
-        part2 = 2*tf.reduce_sum(tf.log(tf.diag_part(tf.cholesky(M))))
+        part2 = 2 * tf.reduce_sum(tf.log(tf.diag_part(tf.cholesky(M))))
         return part1 + part2
 
     def matmul(self, B):
@@ -248,7 +257,7 @@ class LowRankMat:
         RTXR = tf.matmul(RTX, R)
         M = tf.eye(tf.shape(self.W)[1], float_type) + tf.matmul(tf.transpose(R), self.W)
         Mi = tf.matrix_inverse(M)
-        return tf.reduce_sum(tf.diag_part(X) * 1./self.d) - tf.reduce_sum(RTXR * Mi)
+        return tf.reduce_sum(tf.diag_part(X) * 1.0 / self.d) - tf.reduce_sum(RTXR * Mi)
 
     def inv_diag(self):
         d_col = tf.expand_dims(self.d, 1)
@@ -256,7 +265,7 @@ class LowRankMat:
         M = tf.eye(tf.shape(self.W)[1], float_type) + tf.matmul(WTDi, self.W)
         L = tf.cholesky(M)
         tmp1 = tf.matrix_triangular_solve(L, WTDi, lower=True)
-        return 1./self.d - tf.reduce_sum(tf.square(tmp1), 0)
+        return 1.0 / self.d - tf.reduce_sum(tf.square(tmp1), 0)
 
     def matmul_sqrt(self, B):
         """
@@ -304,8 +313,6 @@ class LowRankMatNeg:
         return tf.diag(self.d) - tf.matmul(self.W, tf.transpose(self.W))
 
 
-
-
 class Rank1Mat:
     def __init__(self, d, v):
         """
@@ -330,25 +337,24 @@ class Rank1Mat:
         return tf.diag(self.d) + tf.matmul(V, tf.transpose(V))
 
     def logdet(self):
-        return tf.reduce_sum(tf.log(self.d)) +\
-            tf.log(1. + tf.reduce_sum(tf.square(self.v) / self.d))
+        return tf.reduce_sum(tf.log(self.d)) + tf.log(
+            1.0 + tf.reduce_sum(tf.square(self.v) / self.d)
+        )
 
     def matmul(self, B):
         V = tf.expand_dims(self.v, 1)
-        return tf.expand_dims(self.d, 1) * B +\
-            tf.matmul(V, tf.matmul(tf.transpose(V), B))
+        return tf.expand_dims(self.d, 1) * B + tf.matmul(V, tf.matmul(tf.transpose(V), B))
 
     def solve(self, B):
         div = self.v / self.d
-        c = 1. + tf.reduce_sum(div * self.v)
+        c = 1.0 + tf.reduce_sum(div * self.v)
         div = tf.expand_dims(div, 1)
-        return B / tf.expand_dims(self.d, 1) -\
-            tf.matmul(div/c, tf.matmul(tf.transpose(div), B))
+        return B / tf.expand_dims(self.d, 1) - tf.matmul(div / c, tf.matmul(tf.transpose(div), B))
 
     def inv(self):
         di = tf.reciprocal(self.d)
         Div = self.v * di
-        M = 1. + tf.reduce_sum(Div * self.v)
+        M = 1.0 + tf.reduce_sum(Div * self.v)
         v_new = Div / tf.sqrt(M)
         return Rank1MatNeg(di, v_new)
 
@@ -368,8 +374,8 @@ class Rank1Mat:
 
     def inv_diag(self):
         div = self.v / self.d
-        c = 1. + tf.reduce_sum(div * self.v)
-        return 1./self.d - tf.square(div) / c
+        c = 1.0 + tf.reduce_sum(div * self.v)
+        return 1.0 / self.d - tf.square(div) / c
 
     def matmul_sqrt(self, B):
         """
@@ -456,7 +462,7 @@ class DiagMat:
         return self.d
 
     def inv_diag(self):
-        return 1. / self.d
+        return 1.0 / self.d
 
     def matmul_sqrt(self, B):
         return tf.expand_dims(tf.sqrt(self.d), 1) * B

@@ -26,23 +26,23 @@ class TestKrons(TestCase):
         self.feed = dict(zip(self.ds_tf + self.Ws_tf, self.ds_np + self.Ws_np))
 
     def test_kron_vec_mul(self):
-        v = np.random.randn(self.M**self.D, 1)
+        v = np.random.randn(self.M ** self.D, 1)
         Ks = [K.get() for K in self.Ks_tf]
         res_tf = self.session.run(kronecker_ops.kron_vec_mul(Ks, v), self.feed)
         res_np = np.dot(self.K_np, v)
         self.assertTrue(np.allclose(res_tf, res_np))
 
     def test_kron_mat_mul(self):
-        mat = np.random.randn(self.M**self.D, 3)
+        mat = np.random.randn(self.M ** self.D, 3)
         Ks = [K.get() for K in self.Ks_tf]
         res_tf = self.session.run(kronecker_ops.kron_mat_mul(Ks, mat, 3), self.feed)
         res_np = np.dot(self.K_np, mat)
         self.assertTrue(np.allclose(res_tf, res_np))
 
     def test_kron_vec_apply_solve(self):
-        B = np.random.randn(self.M**self.D, 1)
+        B = np.random.randn(self.M ** self.D, 1)
         res_np = np.linalg.solve(self.K_np, B)
-        res_tf = self.session.run(kronecker_ops.kron_vec_apply(self.Ks_tf, B, 'solve'), self.feed)
+        res_tf = self.session.run(kronecker_ops.kron_vec_apply(self.Ks_tf, B, "solve"), self.feed)
         self.assertTrue(np.allclose(res_tf, res_np))
 
 
@@ -53,7 +53,10 @@ class TestKVS(TestCase):
         self.D = 3
         self.Ks_np = [np.random.randn(self.N, self.M) for i in range(self.D)]
 
-        rows = [np.kron(np.kron(self.Ks_np[0][i], self.Ks_np[1][i]), self.Ks_np[2][i]) for i in range(self.N)]
+        rows = [
+            np.kron(np.kron(self.Ks_np[0][i], self.Ks_np[1][i]), self.Ks_np[2][i])
+            for i in range(self.N)
+        ]
         self.K_full = np.vstack(rows)
 
         self.Ks_tf = [tf.placeholder(tf.float64, [self.N, self.M]) for i in range(self.D)]
@@ -66,7 +69,7 @@ class TestKVS(TestCase):
         self.assertTrue(np.allclose(tf_res, self.K_full))
 
     def test_kvs_dot_vec(self):
-        B = np.random.randn(self.M**self.D, 1)
+        B = np.random.randn(self.M ** self.D, 1)
         tf_res = self.session.run(kronecker_ops.kvs_dot_vec(self.Ks_tf, B), self.feed)
         np_res = np.dot(self.K_full, B)
         self.assertTrue(np.allclose(tf_res, np_res))
