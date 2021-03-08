@@ -1,3 +1,4 @@
+# Copyright 2020 ST John
 # Copyright 2016 James Hensman
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -14,10 +15,8 @@
 
 
 import tensorflow as tf
-from gpflow import settings
+from gpflow import default_float
 from functools import reduce
-
-float_type = settings.dtypes.float_type
 import numpy as np
 
 
@@ -60,8 +59,8 @@ class BlockDiagMat_many:
         for m in self.mats[1:]:
             tr_shape = tf.stack([tf.shape(ret)[0], m.shape[1]])
             bl_shape = tf.stack([m.shape[0], tf.shape(ret)[1]])
-            top = tf.concat([ret, tf.zeros(tr_shape, float_type)], axis=1)
-            bottom = tf.concat([tf.zeros(bl_shape, float_type), m.get()], axis=1)
+            top = tf.concat([ret, tf.zeros(tr_shape, default_float())], axis=1)
+            bottom = tf.concat([tf.zeros(bl_shape, default_float()), m.get()], axis=1)
             ret = tf.concat([top, bottom], axis=0)
         return ret
 
@@ -135,8 +134,8 @@ class BlockDiagMat:
     def get(self):
         tl_shape = tf.stack([self.A.shape[0], self.B.shape[1]])
         br_shape = tf.stack([self.B.shape[0], self.A.shape[1]])
-        top = tf.concat([self.A.get(), tf.zeros(tl_shape, float_type)], axis=1)
-        bottom = tf.concat([tf.zeros(br_shape, float_type), self.B.get()], axis=1)
+        top = tf.concat([self.A.get(), tf.zeros(tl_shape, default_float())], axis=1)
+        bottom = tf.concat([tf.zeros(br_shape, default_float()), self.B.get()], axis=1)
         return tf.concat([top, bottom], axis=0)
 
     def logdet(self):
@@ -212,7 +211,7 @@ class LowRankMat:
 
     def logdet(self):
         part1 = tf.reduce_sum(tf.log(self.d))
-        I = tf.eye(tf.shape(self.W)[1], float_type)
+        I = tf.eye(tf.shape(self.W)[1], default_float())
         M = I + tf.matmul(tf.transpose(self.W) / self.d, self.W)
         part2 = 2 * tf.reduce_sum(tf.log(tf.diag_part(tf.cholesky(M))))
         return part1 + part2
@@ -231,7 +230,7 @@ class LowRankMat:
         DiB = B / d_col
         DiW = self.W / d_col
         WTDiB = tf.matmul(tf.transpose(DiW), B)
-        M = tf.eye(tf.shape(self.W)[1], float_type) + tf.matmul(tf.transpose(DiW), self.W)
+        M = tf.eye(tf.shape(self.W)[1], default_float()) + tf.matmul(tf.transpose(DiW), self.W)
         L = tf.cholesky(M)
         tmp1 = tf.matrix_triangular_solve(L, WTDiB, lower=True)
         tmp2 = tf.matrix_triangular_solve(tf.transpose(L), tmp1, lower=False)
@@ -241,7 +240,7 @@ class LowRankMat:
         di = tf.reciprocal(self.d)
         d_col = tf.expand_dims(self.d, 1)
         DiW = self.W / d_col
-        M = tf.eye(tf.shape(self.W)[1], float_type) + tf.matmul(tf.transpose(DiW), self.W)
+        M = tf.eye(tf.shape(self.W)[1], default_float()) + tf.matmul(tf.transpose(DiW), self.W)
         L = tf.cholesky(M)
         v = tf.transpose(tf.matrix_triangular_solve(L, tf.transpose(DiW), lower=True))
         return LowRankMatNeg(di, V)
@@ -255,14 +254,14 @@ class LowRankMat:
         R = self.W / d_col
         RTX = tf.matmul(tf.transpose(R), X)
         RTXR = tf.matmul(RTX, R)
-        M = tf.eye(tf.shape(self.W)[1], float_type) + tf.matmul(tf.transpose(R), self.W)
+        M = tf.eye(tf.shape(self.W)[1], default_float()) + tf.matmul(tf.transpose(R), self.W)
         Mi = tf.matrix_inverse(M)
         return tf.reduce_sum(tf.diag_part(X) * 1.0 / self.d) - tf.reduce_sum(RTXR * Mi)
 
     def inv_diag(self):
         d_col = tf.expand_dims(self.d, 1)
         WTDi = tf.transpose(self.W / d_col)
-        M = tf.eye(tf.shape(self.W)[1], float_type) + tf.matmul(WTDi, self.W)
+        M = tf.eye(tf.shape(self.W)[1], default_float()) + tf.matmul(WTDi, self.W)
         L = tf.cholesky(M)
         tmp1 = tf.matrix_triangular_solve(L, WTDi, lower=True)
         return 1.0 / self.d - tf.reduce_sum(tf.square(tmp1), 0)
@@ -449,7 +448,7 @@ class DiagMat:
         return B / tf.expand_dims(self.d, 1)
 
     def inv(self):
-        return DiagMat(tf.reciprocal(self.d))
+        return DiagMat(tf.math.reciprocal(self.d))
 
     def trace_KiX(self, X):
         """

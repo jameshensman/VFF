@@ -1,3 +1,4 @@
+# Copyright 2020 ST John
 # Copyright 2016 James Hensman
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -16,12 +17,10 @@
 from __future__ import print_function, absolute_import
 from functools import reduce
 import numpy as np
-import gpflow
+from gpflow import default_float
 import tensorflow as tf
 from .spectral_covariance import make_Kuu, make_Kuf, make_Kuf_np
 from .kronecker_ops import kvs_dot_vec, kron_vec_apply, kvs_dot_mat, kron_mat_apply, kron
-
-float_type = gpflow.settings.dtypes.float_type
 
 
 class VGP_1d(gpflow.models.GPModel):
@@ -87,7 +86,7 @@ class VGP_1d(gpflow.models.GPModel):
         Kim = Kuu.solve(self.q_mu)
         KL = 0.5 * tf.squeeze(tf.matmul(tf.transpose(Kim), self.q_mu))  # Mahalanobis term
         KL += 0.5 * Kuu.trace_KiX(tf.diag(tf.square(tf.reshape(self.q_sqrt, [-1]))))
-        KL += -0.5 * tf.cast(tf.size(self.q_mu), float_type)  # Constant term.
+        KL += -0.5 * tf.cast(tf.size(self.q_mu), default_float())  # Constant term.
         KL += -0.5 * tf.reduce_sum(tf.log(tf.square(self.q_sqrt)))  # Log det Q
         KL += 0.5 * Kuu.logdet()  # Log det P
         return KL
@@ -223,7 +222,7 @@ class VGP_additive(gpflow.models.GPModel):
         q(u) and N(0, 1)
         """
         KL = 0.5 * tf.reduce_sum(tf.square(self.q_mu))  # Mahalanobis term
-        KL += -0.5 * tf.cast(tf.size(self.q_mu), float_type)  # Constant term.
+        KL += -0.5 * tf.cast(tf.size(self.q_mu), default_float())  # Constant term.
         KL += -0.5 * reduce(
             tf.add, [tf.reduce_sum(tf.log(tf.square(q_sqrt_d))) for q_sqrt_d in self.q_sqrt]
         )  # Log det
@@ -397,7 +396,7 @@ class VGP_kron(gpflow.models.GPModel):
         KL = 0.5 * tf.reduce_sum(self.q_mu * Kim)
 
         # Constant term
-        KL += -0.5 * tf.cast(tf.size(self.q_mu), float_type)
+        KL += -0.5 * tf.cast(tf.size(self.q_mu), default_float())
 
         # Log det term
         Ls = [tf.matrix_band_part(q_sqrt_d, -1, 0) for q_sqrt_d in self.q_sqrt_kron]
@@ -577,14 +576,14 @@ class VGP_kron_anyvar(gpflow.models.GPModel):
         Kuu = [make_Kuu(kern, a, b, self.ms) for kern, a, b, in zip(self.kerns, self.a, self.b)]
         Kim = kron_vec_apply(Kuu, self.q_mu, "solve")
         KL = 0.5 * tf.reduce_sum(self.q_mu * Kim)  # Mahalanobis term
-        KL += -0.5 * tf.cast(tf.size(self.q_mu), float_type)  # Constant term.
+        KL += -0.5 * tf.cast(tf.size(self.q_mu), default_float())  # Constant term.
         L = tf.matrix_band_part(self.q_sqrt, -1, 0)
         Q_logdet = tf.reduce_sum(tf.log(tf.square(tf.diag_part(L))))
         KL += -0.5 * Q_logdet  # log determinat Sigma_q
         S = tf.matmul(L, tf.transpose(L))
         KL += 0.5 * tf.reduce_sum(tf.diag_part(kron_mat_apply(Kuu, S, "solve", np.prod(self.Ms))))
         Kuu_logdets = [K.logdet() for K in Kuu]
-        N_others = [tf.cast(tf.size(self.q_mu) / M, float_type) for M in self.Ms]
+        N_others = [tf.cast(tf.size(self.q_mu) / M, default_float()) for M in self.Ms]
         KL += 0.5 * reduce(
             tf.add, [N * logdet for N, logdet in zip(N_others, Kuu_logdets)]
         )  # kron-logdet P

@@ -1,3 +1,4 @@
+# Copyright 2020 ST John
 # Copyright 2016 James Hensman
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -17,9 +18,7 @@ import numpy as np
 import gpflow
 import tensorflow as tf
 from .matrix_structures import DiagMat, Rank1Mat, LowRankMat, BlockDiagMat
-from gpflow import settings
-
-float_type = settings.dtypes.float_type
+from gpflow import default_float
 
 
 def make_Kuu(kern, a, b, ms):
@@ -27,14 +26,14 @@ def make_Kuu(kern, a, b, ms):
     # Make a representation of the Kuu matrices
     """
     omegas = 2.0 * np.pi * ms / (b - a)
-    if float_type is tf.float32:
+    if default_float() is np.float32:
         omegas = omegas.astype(np.float32)
     if isinstance(kern, gpflow.kernels.Matern12):
         # cos part first
         lamb = 1.0 / kern.lengthscales
         two_or_four = np.where(omegas == 0, 2.0, 4.0)
         d_cos = (b - a) * (tf.square(lamb) + tf.square(omegas)) / lamb / kern.variance / two_or_four
-        v_cos = tf.ones(tf.shape(d_cos), float_type) / tf.sqrt(kern.variance)
+        v_cos = tf.ones(tf.shape(d_cos), default_float()) / tf.sqrt(kern.variance)
 
         # now the sin part
         omegas = omegas[omegas != 0]  # don't compute omega=0
@@ -53,7 +52,7 @@ def make_Kuu(kern, a, b, ms):
             / kern.variance
             / four_or_eight
         )
-        v_cos = tf.ones(tf.shape(d_cos), float_type) / tf.sqrt(kern.variance)
+        v_cos = tf.ones(tf.shape(d_cos), default_float()) / tf.sqrt(kern.variance)
 
         # now the sin part
         omegas = omegas[omegas != 0]  # don't compute omega=0
@@ -72,7 +71,7 @@ def make_Kuu(kern, a, b, ms):
         lamb = np.sqrt(5.0) / kern.lengthscales
         sixteen_or_32 = np.where(omegas == 0, 16.0, 32.0)
         v1 = (3 * tf.square(omegas / lamb) - 1) / tf.sqrt(8 * kern.variance)
-        v2 = tf.ones(tf.shape(v1), float_type) / tf.sqrt(kern.variance)
+        v2 = tf.ones(tf.shape(v1), default_float()) / tf.sqrt(kern.variance)
         W_cos = tf.concat([tf.expand_dims(v1, 1), tf.expand_dims(v2, 1)], axis=1)
         d_cos = (
             3
@@ -109,7 +108,7 @@ def make_Kuf_no_edges(X, a, b, ms):
 
 def make_Kuf(k, X, a, b, ms):
     omegas = 2.0 * np.pi * ms / (b - a)
-    if float_type is tf.float32:
+    if default_float() is np.float32:
         omegas = omegas.astype(np.float32)
     Kuf_cos = tf.transpose(tf.cos(omegas * (X - a)))
     omegas_sin = omegas[omegas != 0]  # don't compute zeros freq.
@@ -123,7 +122,7 @@ def make_Kuf(k, X, a, b, ms):
     if isinstance(k, gpflow.kernels.Matern12):
         # Kuf_sin[:, np.logical_or(X.flatten() < a, X.flatten() > b)] = 0
         Kuf_sin = tf.where(
-            tf.logical_or(lt_a_sin, gt_b_sin), tf.zeros(tf.shape(Kuf_sin), float_type), Kuf_sin
+            tf.logical_or(lt_a_sin, gt_b_sin), tf.zeros(tf.shape(Kuf_sin), default_float()), Kuf_sin
         )
         Kuf_cos = tf.where(
             lt_a_cos,

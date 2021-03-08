@@ -1,3 +1,4 @@
+# Copyright 2020 ST John
 # Copyright 2016 James Hensman
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -21,9 +22,7 @@ from functools import reduce
 from .spectral_covariance import make_Kuu, make_Kuf, make_Kuf_np
 from .kronecker_ops import kron, make_kvs_np, make_kvs
 from .matrix_structures import BlockDiagMat_many
-from gpflow import settings
-
-float_type = settings.dtypes.float_type
+from gpflow import default_float
 
 
 class GPR_1d(gpflow.models.GPModel):
@@ -65,8 +64,8 @@ class GPR_1d(gpflow.models.GPModel):
         c = tf.matrix_triangular_solve(L, self.KufY) / sigma2
 
         # compute log marginal bound
-        ND = tf.cast(tf.size(self.Y), float_type)
-        D = tf.cast(tf.shape(self.Y)[1], float_type)
+        ND = tf.cast(tf.size(self.Y), default_float())
+        D = tf.cast(tf.shape(self.Y)[1], default_float())
         return (
             -0.5 * ND * tf.log(2 * np.pi * sigma2),
             -0.5 * D * log_det_P,
@@ -170,8 +169,8 @@ class GPR_additive(gpflow.models.GPModel):
         c = tf.matrix_triangular_solve(L, self.KufY) / sigma2
 
         # compute log marginal bound
-        ND = tf.cast(num_data * output_dim, float_type)
-        D = tf.cast(output_dim, float_type)
+        ND = tf.cast(num_data * output_dim, default_float())
+        D = tf.cast(output_dim, default_float())
         bound = -0.5 * ND * tf.log(2 * np.pi * sigma2)
         bound += -0.5 * D * log_det_P
         bound += 0.5 * D * Kuu.logdet()
@@ -217,7 +216,7 @@ class GPR_additive(gpflow.models.GPModel):
             var = tf.tile(tf.expand_dims(var, 1), shape)
         return mean, var
 
-    @gpflow.autoflow((float_type, [None, 1]))
+    @gpflow.autoflow((default_float(), [None, 1]))
     @gpflow.params_as_tensors
     def predict_components(self, Xnew):
         """
@@ -239,9 +238,9 @@ class GPR_additive(gpflow.models.GPModel):
         Kus = []
         start = tf.constant(0, tf.int32)
         for i, b in enumerate(Kus_blocks):
-            zeros_above = tf.zeros(tf.stack([start, tf.shape(b)[1]]), float_type)
+            zeros_above = tf.zeros(tf.stack([start, tf.shape(b)[1]]), default_float())
             zeros_below = tf.zeros(
-                tf.stack([tf.shape(L)[0] - start - tf.shape(b)[0], tf.shape(b)[1]]), float_type
+                tf.stack([tf.shape(L)[0] - start - tf.shape(b)[0], tf.shape(b)[1]]), default_float()
             )
             Kus.append(tf.concat([zeros_above, b, zeros_below], axis=0))
             start = start + tf.shape(b)[0]
@@ -317,8 +316,8 @@ class GPRKron(gpflow.models.GPModel):
         Kuu_logdet = reduce(tf.add, [N * logdet for N, logdet in zip(N_others, Kuu_logdets)])
 
         # compute log marginal bound
-        ND = tf.cast(tf.size(self.Y), float_type)
-        D = tf.cast(tf.shape(self.Y)[1], float_type)
+        ND = tf.cast(tf.size(self.Y), default_float())
+        D = tf.cast(tf.shape(self.Y)[1], default_float())
         return (
             -0.5 * ND * tf.log(2 * np.pi * sigma2),
             -0.5 * D * log_det_P,
