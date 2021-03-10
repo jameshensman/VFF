@@ -32,25 +32,65 @@ def kron(K):
     return reduce(kron_two, K)
 
 
+def kron_mat_mul(Ks, X, num_cols=None):
+    """
+    :param Ks: list of matrices that are kroneckered together, e.g. [A, B, C] for (A kron B kron C)
+    :param X: the dense matrix with which to right-multiply the kronecker matrix
+    :param num_cols: ignored (backwards-compatibility)
+
+    If 'Ks' is [A, B, C], with dimensions A: (m x n), B: (p x q), C: (r x s), then
+    the kroneckered matrix has shape (m*p*r, n*q*s).
+    'X' has to have shape (s*q*n, k).
+
+    returns: (A kron B kron C) @ X, which has shape (r*p*m, k)
+
+    The result can be rewritten as C [B [A X^T]^T]^T with appropriate intermediate reshapes.
+    """
+
+    def mykronvec(f, A):
+        """
+        f: intermediate result of the kronecker-matrix multiplication
+           (in the first iteration, this is just `mat`)
+        A: the next kronecker component to use
+
+        returns $A f^T$, with appropriate reshapings
+        """
+        m, n = tf.shape(A)  # A.shape
+        n_times_o, k = tf.shape(f)  # f.shape
+        o = n_times_o // n
+
+        # f contains 'extra dimensions' both in terms of the separate columns of X
+        # as well as in terms of the separate Kronecker components. We need the
+        # 'active' dimension for the current component in the middle: then tensorflow
+        # broadcasting deals with one of them, and the matrix multiplication also
+        # "implicitly" broadcasts over the columns of the right-hand matrix which
+        # deals with the other.
+
+        # the transpose ensures column-wise rather than row-wise reshaping
+        mat_f_T = tf.reshape(tf.transpose(a=f), (k, n, o))
+        # Note that there is some magic involved in the transpose incidentally ensuring the right
+        # ordering... but it works as proved by the tests, so it should be all good...
+
+        # tensorflow only broadcasts over the first dimension in matrix
+        # multiplication when the length is the same, hence we need to tile
+        # explicitly:
+        A = A[None, :, :] * tf.ones((k, 1, 1), dtype=tf.float64)
+        # A now has shape (k, m, n)
+
+        v = tf.matmul(A, mat_f_T)  # shape (k, m, o)
+        # transpose needed for column-wise reshaping
+        vec_v = tf.reshape(tf.transpose(a=v), (o * m, k))
+        return vec_v
+
+    return reduce(mykronvec, Ks, X)
+
+
 def kron_vec_mul(K, vec):
     """
     K is a list of tf_arrays to be kroneckered
     vec is a N x 1 tf_array
     """
-    N_by_1 = tf.stack([tf.size(vec), 1])
-
-    def f(v, k):
-        v = tf.reshape(v, tf.stack([tf.shape(k)[1], -1]))
-        v = tf.matmul(k, v)
-        return tf.reshape(
-            tf.transpose(v), N_by_1
-        )  # transposing first flattens the vector in column order
-
-    return reduce(f, K, vec)
-
-
-def kron_mat_mul(K, mat, num_cols):
-    return tf.concat([kron_vec_mul(K, mat[:, i : i + 1]) for i in range(num_cols)], axis=1)
+    return kron_mat_mul(K, vec)
 
 
 def kron_vec_triangular_solve(L, vec, lower=True):
