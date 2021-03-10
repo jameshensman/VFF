@@ -230,7 +230,8 @@ class LowRankMat:
         DiB = B / d_col
         DiW = self.W / d_col
         WTDiB = tf.matmul(DiW, B, transpose_a=True)
-        M = tf.eye(tf.shape(self.W)[1], dtype=default_float()) + tf.matmul(DiW, self.W, transpose_a=True)
+        I = tf.eye(tf.shape(self.W)[1], dtype=default_float())
+        M = I + tf.matmul(DiW, self.W, transpose_a=True)
         L = tf.linalg.cholesky(M)
         Minv_WTDiB = tf.linalg.cholesky_solve(L, WTDiB)
         return DiB - tf.matmul(DiW, Minv_WTDiB)
@@ -239,7 +240,8 @@ class LowRankMat:
         di = tf.math.reciprocal(self.d)
         d_col = tf.expand_dims(self.d, 1)
         DiW = self.W / d_col
-        M = tf.eye(tf.shape(self.W)[1], dtype=default_float()) + tf.matmul(DiW, self.W, transpose_a=True)
+        I = tf.eye(tf.shape(self.W)[1], dtype=default_float())
+        M = I + tf.matmul(DiW, self.W, transpose_a=True)
         L = tf.linalg.cholesky(M)
         v = tf.transpose(tf.linalg.triangular_solve(L, tf.transpose(DiW), lower=True))  # XXX
         return LowRankMatNeg(di, V)
@@ -253,14 +255,16 @@ class LowRankMat:
         R = self.W / d_col
         RTX = tf.matmul(R, X, transpose_a=True)
         RTXR = tf.matmul(RTX, R)
-        M = tf.eye(tf.shape(self.W)[1], dtype=default_float()) + tf.matmul(R, self.W, transpose_a=True)
+        I = tf.eye(tf.shape(self.W)[1], dtype=default_float())
+        M = I + tf.matmul(R, self.W, transpose_a=True)
         Mi = tf.linalg.inv(M)
         return tf.reduce_sum(tf.linalg.diag_part(X) * 1.0 / self.d) - tf.reduce_sum(RTXR * Mi)
 
     def inv_diag(self):
         d_col = tf.expand_dims(self.d, 1)
         WTDi = tf.transpose(self.W / d_col)  # XXX
-        M = tf.eye(tf.shape(self.W)[1], dtype=default_float()) + tf.matmul(WTDi, self.W)
+        I = tf.eye(tf.shape(self.W)[1], dtype=default_float())
+        M = I + tf.matmul(WTDi, self.W)
         L = tf.linalg.cholesky(M)
         tmp1 = tf.linalg.triangular_solve(L, WTDi, lower=True)
         return 1.0 / self.d - tf.reduce_sum(tf.square(tmp1), 0)
