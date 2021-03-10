@@ -330,6 +330,10 @@ class VGP_kron(gpflow.models.GPModel, gpflow.models.InternalDataTrainingLossMixi
             make_Kuf(k, X[:, i : i + 1], a, b, self.ms)
             for i, (k, a, b) in enumerate(zip(self.kernels, self.a, self.b))
         ]
+
+        return self._predict_f(X, Kuf, full_cov)
+
+    def _predict_f(self, X, Kuf, full_cov):
         Kuu = [make_Kuu(kern, a, b, self.ms) for kern, a, b, in zip(self.kernels, self.a, self.b)]
         KiKuf = [Kuu_d.solve(Kuf_d) for Kuu_d, Kuf_d in zip(Kuu, Kuf)]
         KfuKi = [tf.transpose(mat) for mat in KiKuf]  # XXX
@@ -374,37 +378,7 @@ class VGP_kron(gpflow.models.GPModel, gpflow.models.InternalDataTrainingLossMixi
     def predict_train(self):
         X, _ = self.data
         Kuf = self._Kuf
-        Kuu = [make_Kuu(kern, a, b, self.ms) for kern, a, b, in zip(self.kernels, self.a, self.b)]
-        KiKuf = [Kuu_d.solve(Kuf_d) for Kuu_d, Kuf_d in zip(Kuu, Kuf)]
-        KfuKi = [tf.transpose(mat) for mat in KiKuf]  # XXX
-
-        mu = kvs_dot_vec(KfuKi, self.q_mu)
-
-        # Kff:
-        var = reduce(
-            tf.multiply, [k(X[:, i : i + 1], full_cov=False) for i, k in enumerate(self.kernels)]
-        )
-
-        # Projected variance Kfu Ki [WWT] Ki Kuf
-        Ls = [tf.linalg.band_part(q_sqrt_d, -1, 0) for q_sqrt_d in self.q_sqrt_kron]
-        tmp = [tf.matmul(L, KiKuf_d, transpose_a=True) for L, KiKuf_d in zip(Ls, KiKuf)]
-        var = var + reduce(tf.multiply, [tf.reduce_sum(tf.square(tmp_d), 0) for tmp_d in tmp])
-
-        if self.use_two_krons:
-            Ls = [tf.linalg.band_part(q_sqrt_d, -1, 0) for q_sqrt_d in self.q_sqrt_kron_2]
-            tmp = [tf.matmul(L, KiKuf_d, transpose_a=True) for L, KiKuf_d in zip(Ls, KiKuf)]
-            var = var + reduce(tf.multiply, [tf.reduce_sum(tf.square(tmp_d), 0) for tmp_d in tmp])
-        elif self.use_extra_ranks:
-            for i in range(self.use_extra_ranks):
-                tmp = kvs_dot_vec(KfuKi, self.q_sqrt_W[:, i : i + 1])
-                var = var + tf.reduce_sum(tf.square(tmp), 1)
-
-        # Qff
-        var = var - reduce(
-            tf.multiply, [tf.reduce_sum(Kuf_d * KiKuf_d, 0) for Kuf_d, KiKuf_d in zip(Kuf, KiKuf)]
-        )
-
-        return mu, tf.reshape(var, [-1, 1])
+        return self._predict_f(X, Kuf, full_cov=False)
 
     def compute_KL(self):
         """
@@ -537,6 +511,9 @@ class VGP_kron_anyvar(gpflow.models.GPModel, gpflow.models.InternalDataTrainingL
             make_Kuf(k, X[:, i : i + 1], a, b, self.ms)
             for i, (k, a, b) in enumerate(zip(self.kernels, self.a, self.b))
         ]
+        return self._predict_f(X, Kuf, full_cov)
+
+    def _predict_f(self, X, Kuf, full_cov):
         Kuu = [make_Kuu(kern, a, b, self.ms) for kern, a, b, in zip(self.kernels, self.a, self.b)]
         KiKuf = [Kuu_d.solve(Kuf_d) for Kuu_d, Kuf_d in zip(Kuu, Kuf)]
         KfuKi = [tf.transpose(mat) for mat in KiKuf]  # XXX
@@ -572,28 +549,7 @@ class VGP_kron_anyvar(gpflow.models.GPModel, gpflow.models.InternalDataTrainingL
     def predict_train(self):
         X, _ = self.data
         Kuf = self._Kuf
-        Kuu = [make_Kuu(kern, a, b, self.ms) for kern, a, b, in zip(self.kernels, self.a, self.b)]
-        KiKuf = [Kuu_d.solve(Kuf_d) for Kuu_d, Kuf_d in zip(Kuu, Kuf)]
-        KfuKi = [tf.transpose(mat) for mat in KiKuf]  # XXX
-
-        mu = kvs_dot_vec(KfuKi, self.q_mu)
-        L = tf.linalg.band_part(self.q_sqrt, -1, 0)
-        tmp1 = kvs_dot_mat(KfuKi, L, num_cols=np.prod(self.Ms))
-
-        # Kff:
-        var = reduce(
-            tf.multiply, [k(X[:, i : i + 1], full_cov=False) for i, k in enumerate(self.kernels)]
-        )
-        # Projected variance Kfu Ki [WWT] Ki Kuf
-        # var = var + reduce(tf.multiply, [tf.reduce_sum(tf.square(tmp1_d), 0) for tmp1_d in tmp1])
-        var = var + tf.reduce_sum(tf.square(tmp1), 1)
-        # Qff
-        var = var - reduce(
-            tf.multiply, [tf.reduce_sum(Kuf_d * KiKuf_d, 0) for Kuf_d, KiKuf_d in zip(Kuf, KiKuf)]
-        )
-        var = tf.reshape(var, (-1, 1))
-
-        return mu, var
+        return self._predict_f(X, Kuf, full_cov=False)
 
     def compute_KL(self):
         """
