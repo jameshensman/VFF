@@ -1,4 +1,4 @@
-# Copyright 2020 ST John
+# Copyright 2021 ST John
 # Copyright 2016 James Hensman
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
