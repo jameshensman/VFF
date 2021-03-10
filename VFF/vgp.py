@@ -50,7 +50,9 @@ class VGP_1d(gpflow.models.GPModel, gpflow.models.InternalDataTrainingLossMixin)
         self.q_mu = gpflow.Parameter(np.zeros((Ncos + Nsin, 1)))
         self.q_sqrt = gpflow.Parameter(np.ones(Ncos + Nsin), transform=gpflow.utilities.positive())
 
-    def predict_f(self, X, full_cov=False):
+    def predict_f(self, Xnew, full_cov=False, full_output_cov=False):
+        assert not full_output_cov
+        X = Xnew
         # given self.q(v), compute q(f)
 
         Kuf = make_Kuf(self.kernel, X, self.a, self.b, self.ms)
@@ -187,7 +189,9 @@ class VGP_additive(gpflow.models.GPModel, gpflow.models.InternalDataTrainingLoss
             gpflow.Parameter(np.ones(M), transform=gpflow.utilities.positive()) for M in self.Ms
         ]
 
-    def predict_f(self, X, full_cov=False):
+    def predict_f(self, Xnew, full_cov=False, full_output_cov=False):
+        assert not full_output_cov
+        X = Xnew
         # given self.q(v), compute q(f)
 
         Kuf = [
@@ -323,7 +327,9 @@ class VGP_kron(gpflow.models.GPModel, gpflow.models.InternalDataTrainingLossMixi
             for i, (ai, bi) in enumerate(zip(self.a, self.b))
         ]
 
-    def predict_f(self, X, full_cov=False):
+    def predict_f(self, Xnew, full_cov=False, full_output_cov=False):
+        assert not full_output_cov
+        X = Xnew
         # given self.q(v), compute q(f)
 
         Kuf = [
@@ -504,7 +510,9 @@ class VGP_kron_anyvar(gpflow.models.GPModel, gpflow.models.InternalDataTrainingL
             for i, (ai, bi) in enumerate(zip(self.a, self.b))
         ]
 
-    def predict_f(self, X, full_cov=False):
+    def predict_f(self, Xnew, full_cov=False, full_output_cov=False):
+        assert not full_output_cov
+        X = Xnew
         # given self.q(v), compute q(f)
 
         Kuf = [
