@@ -3,7 +3,8 @@ import gpflow
 import VFF
 import sys
 import os
-os.environ["TF_CPP_MIN_LOG_LEVEL"]="2"
+
+os.environ["TF_CPP_MIN_LOG_LEVEL"] = "2"
 
 from time import time
 
@@ -14,28 +15,29 @@ rep = int(sys.argv[2])
 num_basis = int(sys.argv[3])
 
 num_inducing = num_basis ** dim
-print('sparse: dimension {}, replicate {}, inducing {}'.format(dim, rep, num_inducing))
+print("sparse: dimension {}, replicate {}, inducing {}".format(dim, rep, num_inducing))
 
 # data
-data = np.load('data/data_dim{}_rep{}.npz'.format(dim, rep))
-k = gpflow.kernels.Prod([gpflow.kernels.Matern32(1, active_dims=[i], lengthscales=lengthscale) for i in range(dim)])
+data = np.load("data/data_dim{}_rep{}.npz".format(dim, rep))
+k = gpflow.kernels.Prod(
+    [gpflow.kernels.Matern32(1, active_dims=[i], lengthscales=lengthscale) for i in range(dim)]
+)
 
 # build sparse GP model
-Z_grid = np.linspace(0, 1, num_basis) 
+Z_grid = np.linspace(0, 1, num_basis)
 tmp = np.array(np.meshgrid(*[Z_grid for _ in range(dim)]))
 Z = tmp.reshape(dim, num_basis ** dim).T
 
-m = gpflow.sgpr.SGPR(data['Xtrain'], data['Ytrain'], Z=Z, kern=k)
+m = gpflow.sgpr.SGPR(data["Xtrain"], data["Ytrain"], Z=Z, kern=k)
 m.likelihood.variance = noise_var
 
 marg_lik = m.compute_log_likelihood().squeeze()
-mean_log_pred = 0*marg_lik
+mean_log_pred = 0 * marg_lik
 
 start = time()
-pred = m.predict_density(data['Xtest'], data['Ytest'])
+pred = m.predict_density(data["Xtest"], data["Ytest"])
 t = time() - start
 
-file = open("results/sparse.csv","a") 
-file.write("{},{},{},{},{},{}\n".format(dim, rep, num_inducing, marg_lik, mean_log_pred, t)) 
-file.close() 
-
+file = open("results/sparse.csv", "a")
+file.write("{},{},{},{},{},{}\n".format(dim, rep, num_inducing, marg_lik, mean_log_pred, t))
+file.close()

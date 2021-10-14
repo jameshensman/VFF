@@ -21,11 +21,11 @@ import vff
 import pandas as pd
 
 # Import the data
-data = pd.read_pickle('airline.pickle')
+data = pd.read_pickle("airline.pickle")
 
 # Convert time of day from hhmm to minutes since midnight
-data.ArrTime = 60*np.floor(data.ArrTime/100)+np.mod(data.ArrTime, 100)
-data.DepTime = 60*np.floor(data.DepTime/100)+np.mod(data.DepTime, 100)
+data.ArrTime = 60 * np.floor(data.ArrTime / 100) + np.mod(data.ArrTime, 100)
+data.DepTime = 60 * np.floor(data.DepTime / 100) + np.mod(data.DepTime, 100)
 
 # remove flights with silly negative delays (small negative delays are OK)
 data = data[data.ArrDelay > -60]
@@ -33,8 +33,17 @@ data = data[data.ArrDelay > -60]
 data = data[data.AirTime < 700]
 
 # Pick out the data
-Y = data['ArrDelay'].values
-names = ['Month', 'DayofMonth', 'DayOfWeek', 'plane_age', 'AirTime', 'Distance', 'ArrTime', 'DepTime']
+Y = data["ArrDelay"].values
+names = [
+    "Month",
+    "DayofMonth",
+    "DayOfWeek",
+    "plane_age",
+    "AirTime",
+    "Distance",
+    "ArrTime",
+    "DepTime",
+]
 X = data[names].values
 
 # normalize Y scale and offset
@@ -55,15 +64,21 @@ def plot(m):
     for i in range(mu.shape[1]):
         ax = axes.flatten()[i]
         Xplot = Xtest * (Xmax[i] - Xmin[i]) + Xmin[i]
-        ax.plot(Xplot, mu[:, i], lw=2, color='C0')
-        ax.plot(Xplot, mu[:, i] + 2*np.sqrt(var[:, i]), 'C0--', lw=1)
-        ax.plot(Xplot, mu[:, i] - 2*np.sqrt(var[:, i]), 'C0--', lw=1)
+        ax.plot(Xplot, mu[:, i], lw=2, color="C0")
+        ax.plot(Xplot, mu[:, i] + 2 * np.sqrt(var[:, i]), "C0--", lw=1)
+        ax.plot(Xplot, mu[:, i] - 2 * np.sqrt(var[:, i]), "C0--", lw=1)
         ax.set_title(names[i])
 
 
-if __name__ == '__main__':
-    m = vff.gpr.GPR_additive(X, Y, np.arange(30), np.zeros(X.shape[1]) - 2, np.ones(X.shape[1]) + 2,
-                             [gpflow.kernels.Matern32(1) for i in range(X.shape[1])])
+if __name__ == "__main__":
+    m = vff.gpr.GPR_additive(
+        X,
+        Y,
+        np.arange(30),
+        np.zeros(X.shape[1]) - 2,
+        np.ones(X.shape[1]) + 2,
+        [gpflow.kernels.Matern32(1) for i in range(X.shape[1])],
+    )
     opt = gpflow.train.ScipyOptimizer()
     opt.minimize(m)
 
